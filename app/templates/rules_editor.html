@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Éditeur de règles - SEO Internal Linking Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        .rules-section {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .footer {
+            margin-top: 3rem;
+            padding: 2rem 0;
+            background-color: #f8f9fa;
+        }
+        .segment-card {
+            margin-bottom: 1rem;
+            border-left: 4px solid #007bff;
+        }
+        .segment-card.target {
+            border-left: 4px solid #28a745;
+        }
+        .rule-value {
+            width: 80px;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analysis">Analyse</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/rules">Règles</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mt-4" x-data="rulesEditor()">
+        <h1 class="mb-4">Éditeur de règles de maillage</h1>
+        
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> À propos des règles de maillage</h5>
+            <p>Les règles de maillage définissent le nombre de liens recommandés entre différents types de pages. La valeur représente le nombre de liens à créer.</p>
+            <p>Exemple : Une valeur de 3 entre "blog" et "produit" signifie que chaque article de blog devrait contenir 3 liens vers des pages produit.</p>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Importer des règles</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="rulesFile" class="form-label">Fichier de règles (JSON)</label>
+                            <input class="form-control" type="file" id="rulesFile" @change="handleFileUpload">
+                        </div>
+                        <button class="btn btn-primary" @click="importRules">
+                            <i class="bi bi-upload"></i> Importer
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Exporter les règles</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Exportez les règles actuelles pour les sauvegarder ou les réutiliser ultérieurement.</p>
+                        <button class="btn btn-success" @click="exportRules">
+                            <i class="bi bi-download"></i> Exporter en JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="rules-section">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 class="mb-0">Règles de maillage</h3>
+                <div>
+                    <button class="btn btn-primary" @click="saveRules">
+                        <i class="bi bi-save"></i> Enregistrer les modifications
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Ajouter un nouveau segment</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" placeholder="Nom du segment" x-model="newSegment">
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-success w-100" @click="addSegment" :disabled="!newSegment">
+                                    <i class="bi bi-plus-circle"></i> Ajouter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <template x-if="Object.keys(rules).length === 0">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Aucune règle définie. Importez un fichier de règles ou ajoutez des segments.
+                </div>
+            </template>
+            
+            <template x-if="Object.keys(rules).length > 0">
+                <div>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Source \ Destination</th>
+                                    <template x-for="segment in Object.keys(rules)" :key="segment">
+                                        <th scope="col" x-text="segment"></th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="sourceSegment in Object.keys(rules)" :key="sourceSegment">
+                                    <tr>
+                                        <th scope="row" class="d-flex justify-content-between align-items-center">
+                                            <span x-text="sourceSegment"></span>
+                                            <button class="btn btn-sm btn-outline-danger" @click="removeSegment(sourceSegment)" title="Supprimer ce segment">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </th>
+                                        <template x-for="targetSegment in Object.keys(rules)" :key="targetSegment">
+                                            <td>
+                                                <input type="number" class="form-control rule-value" min="0" max="10"
+                                                    x-model.number="rules[sourceSegment][targetSegment]"
+                                                    @change="updateRule(sourceSegment, targetSegment, $event.target.value)">
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5>Interprétation des valeurs</h5>
+                        <div class="row">
+                            <div class="col-md-3 col-6 mb-2">
+                                <span class="badge bg-secondary">0</span> Aucun lien recommandé
+                            </div>
+                            <div class="col-md-3 col-6 mb-2">
+                                <span class="badge bg-info">1-3</span> Quelques liens recommandés
+                            </div>
+                            <div class="col-md-3 col-6 mb-2">
+                                <span class="badge bg-primary">4-6</span> Nombre modéré de liens
+                            </div>
+                            <div class="col-md-3 col-6 mb-2">
+                                <span class="badge bg-success">7-10</span> Nombre élevé de liens
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        
+        <div class="notification" x-show="notification.show" x-transition>
+            <div class="alert" :class="'alert-' + notification.type" role="alert">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span x-text="notification.message"></span>
+                    <button type="button" class="btn-close" @click="notification.show = false"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="footer">
+        <div class="container text-center">
+            <p>SEO Internal Linking Tool &copy; 2025</p>
+        </div>
+    </footer>
+    
+    <script>
+        function rulesEditor() {
+            return {
+                rules: {},
+                newSegment: '',
+                fileContent: null,
+                notification: {
+                    show: false,
+                    message: '',
+                    type: 'info',
+                    timeout: null
+                },
+                
+                init() {
+                    // Essayer de charger les règles depuis le serveur, puis depuis le localStorage si échec
+                    this.loadRules();
+                    
+                    // Vérifier périodiquement si les règles sont vides et réessayer de les charger
+                    setTimeout(() => {
+                        if (Object.keys(this.rules).length === 0) {
+                            console.log('Aucune règle chargée, tentative de récupération depuis localStorage');
+                            this.loadRulesFromLocalStorage();
+                        }
+                    }, 1000);
+                },
+                
+                // Charger les règles depuis le stockage local
+                loadRulesFromLocalStorage() {
+                    try {
+                        const savedRules = localStorage.getItem('segmentRules');
+                        if (savedRules) {
+                            const parsedRules = JSON.parse(savedRules);
+                            if (parsedRules && Object.keys(parsedRules).length > 0) {
+                                this.rules = parsedRules;
+                                this.showNotification('Règles chargées depuis le stockage local', 'info');
+                                console.log('Règles chargées depuis localStorage:', parsedRules);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Erreur lors du chargement depuis localStorage:', e);
+                    }
+                },
+                
+                // Sauvegarder les règles dans le stockage local
+                saveRulesToLocalStorage() {
+                    try {
+                        localStorage.setItem('segmentRules', JSON.stringify(this.rules));
+                        console.log('Règles sauvegardées dans localStorage');
+                    } catch (e) {
+                        console.error('Erreur lors de la sauvegarde dans localStorage:', e);
+                    }
+                },
+                
+                loadRules() {
+                    console.log('Chargement des règles depuis le serveur...');
+                    
+                    // Créer une requête avec un timestamp pour éviter la mise en cache
+                    const timestamp = new Date().getTime();
+                    const url = `/api/rules?_=${timestamp}`;
+                    
+                    // Utiliser XMLHttpRequest pour plus de compatibilité
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('GET', url, true);
+                    xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    xhr.setRequestHeader('Pragma', 'no-cache');
+                    xhr.setRequestHeader('Expires', '0');
+                    
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                const data = JSON.parse(xhr.responseText);
+                                console.log('Règles reçues du serveur:', data);
+                                
+                                if (data && data.rules && Object.keys(data.rules).length > 0) {
+                                    this.rules = data.rules;
+                                    this.saveRulesToLocalStorage(); // Sauvegarder dans localStorage
+                                    this.showNotification(`Règles chargées avec succès: ${Object.keys(this.rules).length} segments`, 'success');
+                                } else {
+                                    console.log('Aucune règle trouvée sur le serveur ou réponse vide');
+                                    // Essayer de charger depuis localStorage
+                                    this.loadRulesFromLocalStorage();
+                                }
+                            } catch (e) {
+                                console.error('Erreur de parsing JSON:', e, xhr.responseText);
+                                // Essayer de charger depuis localStorage en cas d'échec
+                                this.loadRulesFromLocalStorage();
+                            }
+                        } else {
+                            console.error('Erreur HTTP:', xhr.status, xhr.statusText);
+                            // Essayer de charger depuis localStorage en cas d'échec
+                            this.loadRulesFromLocalStorage();
+                        }
+                    };
+                    
+                    xhr.onerror = () => {
+                        console.error('Erreur réseau');
+                        // Essayer de charger depuis localStorage en cas d'échec
+                        this.loadRulesFromLocalStorage();
+                    };
+                    
+                    xhr.timeout = 5000; // 5 secondes de timeout
+                    xhr.ontimeout = () => {
+                        console.error('Timeout lors du chargement des règles');
+                        // Essayer de charger depuis localStorage en cas de timeout
+                        this.loadRulesFromLocalStorage();
+                    };
+                    
+                    xhr.send();
+                },
+                
+                saveRules() {
+                    // Vérifier si des règles existent
+                    if (Object.keys(this.rules).length === 0) {
+                        this.showNotification('Aucune règle à enregistrer', 'warning');
+                        return;
+                    }
+                    
+                    // Sauvegarder dans localStorage d'abord (sauvegarde locale)
+                    this.saveRulesToLocalStorage();
+                    
+                    // Convertir les valeurs numériques en chaînes pour éviter les problèmes de validation
+                    const simplifiedRules = {};
+                    
+                    // Créer une version simplifiée des règles
+                    for (const source in this.rules) {
+                        simplifiedRules[source] = {};
+                        for (const target in this.rules[source]) {
+                            // Convertir les valeurs numériques en chaînes
+                            simplifiedRules[source][target] = String(this.rules[source][target] || 0);
+                        }
+                    }
+                    
+                    console.log('Envoi des règles au serveur:', { rules: simplifiedRules });
+                    
+                    // Utiliser XMLHttpRequest au lieu de fetch pour plus de compatibilité
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/save-rules', true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                console.log('Réponse du serveur:', response);
+                                
+                                if (response && response.success) {
+                                    // Mettre à jour les règles avec celles retournées par le serveur si disponibles
+                                    if (response.rules && Object.keys(response.rules).length > 0) {
+                                        this.rules = response.rules;
+                                        this.saveRulesToLocalStorage(); // Mettre à jour localStorage
+                                    }
+                                    this.showNotification('Règles enregistrées avec succès', 'success');
+                                } else {
+                                    this.showNotification('Erreur lors de l\'enregistrement des règles', 'warning');
+                                }
+                            } catch (e) {
+                                console.error('Erreur de parsing JSON:', e);
+                                this.showNotification('Réponse invalide du serveur', 'warning');
+                            }
+                        } else {
+                            console.error('Erreur HTTP:', xhr.status, xhr.statusText, xhr.responseText);
+                            this.showNotification('Erreur lors de l\'enregistrement des règles: ' + xhr.statusText, 'danger');
+                        }
+                    };
+                    
+                    xhr.onerror = () => {
+                        console.error('Erreur réseau');
+                        this.showNotification('Erreur réseau lors de l\'enregistrement des règles', 'danger');
+                    };
+                    
+                    xhr.send(JSON.stringify({ rules: simplifiedRules }));
+                },
+                
+                addSegment() {
+                    if (!this.newSegment) return;
+                    
+                    const segment = this.newSegment.trim().toLowerCase();
+                    
+                    // Vérifier si le segment existe déjà
+                    if (this.rules[segment]) {
+                        this.showNotification('Ce segment existe déjà', 'warning');
+                        return;
+                    }
+                    
+                    // Ajouter le nouveau segment
+                    this.rules[segment] = {};
+                    
+                    // Initialiser les règles pour ce segment
+                    for (const existingSegment of Object.keys(this.rules)) {
+                        if (existingSegment !== segment) {
+                            // Règles du nouveau segment vers les segments existants
+                            this.rules[segment][existingSegment] = 0;
+                            
+                            // Règles des segments existants vers le nouveau segment
+                            this.rules[existingSegment][segment] = 0;
+                        }
+                    }
+                    
+                    // Règle du segment vers lui-même
+                    this.rules[segment][segment] = 0;
+                    
+                    this.newSegment = '';
+                    this.showNotification('Segment ajouté avec succès', 'success');
+                },
+                
+                updateRule(source, target, value) {
+                    this.rules[source][target] = parseInt(value) || 0;
+                },
+                
+                removeSegment(segmentToRemove) {
+                    if (!confirm(`Êtes-vous sûr de vouloir supprimer le segment "${segmentToRemove}" ?`)) {
+                        return;
+                    }
+                    
+                    // Créer une copie des règles actuelles
+                    const updatedRules = {};
+                    
+                    // Reconstruire les règles sans le segment supprimé
+                    for (const sourceSegment in this.rules) {
+                        if (sourceSegment !== segmentToRemove) {
+                            updatedRules[sourceSegment] = {};
+                            
+                            for (const targetSegment in this.rules[sourceSegment]) {
+                                if (targetSegment !== segmentToRemove) {
+                                    updatedRules[sourceSegment][targetSegment] = this.rules[sourceSegment][targetSegment];
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Mettre à jour les règles
+                    this.rules = updatedRules;
+                    this.showNotification(`Segment "${segmentToRemove}" supprimé avec succès`, 'success');
+                },
+                
+                handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            this.fileContent = JSON.parse(e.target.result);
+                            this.showNotification('Fichier chargé, cliquez sur Importer pour appliquer les règles', 'info');
+                        } catch (error) {
+                            console.error('Erreur de parsing JSON:', error);
+                            this.showNotification('Format de fichier invalide. Assurez-vous que le fichier est au format JSON valide.', 'danger');
+                        }
+                    };
+                    reader.readAsText(file);
+                },
+                
+                importRules() {
+                    if (!this.fileContent) {
+                        this.showNotification('Veuillez d\'abord sélectionner un fichier', 'warning');
+                        return;
+                    }
+                    
+                    try {
+                        this.rules = this.fileContent;
+                        this.fileContent = null;
+                        document.getElementById('rulesFile').value = '';
+                        this.showNotification('Règles importées avec succès', 'success');
+                    } catch (error) {
+                        console.error('Erreur lors de l\'importation:', error);
+                        this.showNotification('Erreur lors de l\'importation des règles', 'danger');
+                    }
+                },
+                
+                exportRules() {
+                    if (Object.keys(this.rules).length === 0) {
+                        this.showNotification('Aucune règle à exporter', 'warning');
+                        return;
+                    }
+                    
+                    // Deux options d'export : 
+                    // 1. Télécharger directement le fichier du serveur (si les règles ont été sauvegardées)
+                    // 2. Générer un fichier à partir des règles actuelles dans l'interface
+                    
+                    // Option 1: Télécharger depuis le serveur
+                    window.location.href = '/api/rules/download';
+                    
+                    this.showNotification('Règles exportées avec succès', 'success');
+                },
+                
+                showNotification(message, type = 'info') {
+                    // Effacer le timeout précédent s'il existe
+                    if (this.notification.timeout) {
+                        clearTimeout(this.notification.timeout);
+                    }
+                    
+                    this.notification.message = message;
+                    this.notification.type = type;
+                    this.notification.show = true;
+                    
+                    // Masquer la notification après 5 secondes
+                    this.notification.timeout = setTimeout(() => {
+                        this.notification.show = false;
+                    }, 5000);
+                }
+            };
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "categorie": {
+    "categorie": 2,
+    "produit": 0,
+    "article": 2
+  },
+  "produit": {
+    "categorie": 3,
+    "produit": 0,
+    "article": 2
+  },
+  "article": {
+    "categorie": 3,
+    "produit": 2,
+    "article": 3
+  }
+}

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualisation du maillage - Cytoscape</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    
+    <!-- Cytoscape.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+    
+    <!-- Styles personnalisés -->
+    <style>
+        .cy-container {
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        .cy-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 999;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 4px;
+            padding: 5px;
+        }
+        
+        .cy-controls button {
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .cy-controls button:hover {
+            background: #f0f0f0;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            margin-bottom: 5px;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+        
+        .network-legend {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .spinner-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>Visualisation du maillage avec Cytoscape</h1>
+                    <div>
+                        <a href="javascript:void(0)" id="back-to-results" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-left"></i> Retour aux résultats
+                        </a>
+                        <a href="javascript:void(0)" id="standard-visualization" class="btn btn-outline-secondary">
+                            <i class="bi bi-graph-up"></i> Visualisation standard
+                        </a>
+                    </div>
+                </div>
+                <p class="text-muted">
+                    Cette visualisation utilise Cytoscape.js, une bibliothèque optimisée pour les grands graphes.
+                </p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-9">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link active" id="current-tab" data-bs-toggle="tab" href="#cy-current-network" role="tab">Maillage actuel</a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" id="optimized-tab" data-bs-toggle="tab" href="#cy-optimized-network" role="tab">Maillage optimisé</a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text">Nombre de pages</span>
+                                    <select id="cy-node-limit" class="form-select" onchange="updateCyMaxNodes(parseInt(this.value))">
+                                        <option value="50">Top 50</option>
+                                        <option value="100" selected>Top 100</option>
+                                        <option value="200">Top 200</option>
+                                        <option value="500">Top 500</option>
+                                        <option value="1000">Top 1000</option>
+                                        <option value="0">Toutes</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text">Layout</span>
+                                    <select id="cy-layout" class="form-select" onchange="changeLayout(this.value)">
+                                        <option value="cose" selected>Force-directed (COSE)</option>
+                                        <option value="concentric">Concentrique (par PageRank)</option>
+                                        <option value="breadthfirst">Hiérarchique</option>
+                                        <option value="circle">Circulaire</option>
+                                        <option value="grid">Grille</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="cy-current-network" role="tabpanel">
+                                <div class="cy-container" id="cy-current-graph">
+                                    <div class="spinner-container" id="cy-current-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="network-legend mt-2">
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #007bff;"></div>
+                                        <div class="legend-label">Catégorie</div>
+                                    </div>
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #28a745;"></div>
+                                        <div class="legend-label">Produit</div>
+                                    </div>
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #fd7e14;"></div>
+                                        <div class="legend-label">Blog</div>
+                                    </div>
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #dc3545;"></div>
+                                        <div class="legend-label">Page d'accueil</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="tab-pane fade" id="cy-optimized-network" role="tabpanel">
+                                <div class="cy-container" id="cy-optimized-graph">
+                                    <div class="spinner-container" id="cy-optimized-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="network-legend mt-2">
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #6c757d;"></div>
+                                        <div class="legend-label">Lien existant</div>
+                                    </div>
+                                    <div class="legend-item">
+                                        <div class="legend-color" style="background-color: #28a745; border-style: dashed;"></div>
+                                        <div class="legend-label">Lien suggéré</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div id="node-details">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Détails</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">
+                                Cliquez sur un nœud pour afficher ses détails.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="network-stats" class="mt-4">
+                    <!-- Les statistiques du réseau seront affichées ici -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Scripts personnalisés -->
+    <script src="/static/js/cytoscape-visualization.js"></script>
+    
+    <script>
+        // Charger les données du graphe
+        document.addEventListener('DOMContentLoaded', function() {
+            const jobId = window.location.pathname.split('/').pop();
+            
+            // Configurer les liens avec l'ID du job
+            document.getElementById('back-to-results').href = `/results/${jobId}`;
+            document.getElementById('standard-visualization').href = `/visualization/${jobId}`;
+            
+            fetch(`/api/visualization-data/${jobId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erreur HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Masquer les spinners
+                    document.getElementById('cy-current-spinner').style.display = 'none';
+                    document.getElementById('cy-optimized-spinner').style.display = 'none';
+                    
+                    console.log('Données reçues pour la visualisation:', data);
+                    
+                    // Initialiser la visualisation
+                    initCytoscapeVisualization(data);
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des données:', error);
+                    alert('Erreur lors du chargement des données: ' + error.message);
+                    
+                    // Masquer les spinners en cas d'erreur
+                    document.getElementById('cy-current-spinner').style.display = 'none';
+                    document.getElementById('cy-optimized-spinner').style.display = 'none';
+                });
+        });
+    </script>
+</body>
+</html>

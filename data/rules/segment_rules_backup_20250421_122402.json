@@ -1,0 +1,17 @@
+{
+  "cat\u00e9gorie": {
+    "cat\u00e9gorie": 3,
+    "produit": 0,
+    "article": 2
+  },
+  "produit": {
+    "cat\u00e9gorie": 2,
+    "produit": 0,
+    "article": 2
+  },
+  "article": {
+    "cat\u00e9gorie": 3,
+    "produit": 2,
+    "article": 3
+  }
+}

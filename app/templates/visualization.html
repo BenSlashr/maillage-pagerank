@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualisation - SEO Internal Linking Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <style>
+        .network-container {
+            height: 600px;
+            border: 1px solid #ddd;
+            background-color: #f8f9fa;
+        }
+        .footer {
+            margin-top: 3rem;
+            padding: 2rem 0;
+            background-color: #f8f9fa;
+        }
+        #loading-message {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.2rem;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 15px;
+        }
+        .legend-color {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        .legend-label {
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analysis">Analyse</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/results/{{ job_id }}">Résultats</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/visualization/{{ job_id }}">Visualisation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/rules">Règles</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Visualisation du maillage interne</h1>
+        
+        <div id="loading-message">
+            Chargement des données de visualisation...
+            <div class="spinner-border text-primary mt-3" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+        </div>
+        
+        <div id="visualization-container" style="display: none;">
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#current-network" data-bs-toggle="tab">Maillage actuel</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#optimized-network" data-bs-toggle="tab">Maillage optimisé</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#pagerank-tab" data-bs-toggle="tab">PageRank</a>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="current-network">
+                    <div class="row">
+                        <div class="col-md-9">
+                            <div class="card mb-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0" id="network-title">Maillage actuel</h5>
+                                    <div class="graph-controls">
+                                        <div class="d-flex flex-wrap">
+                                            <div class="input-group me-2 mb-2">
+                                                <span class="input-group-text">Nombre de pages</span>
+                                                <select id="node-limit" class="form-select" onchange="updateMaxNodes(parseInt(this.value))">
+                                                    <option value="50">Top 50</option>
+                                                    <option value="100" selected>Top 100</option>
+                                                    <option value="200">Top 200</option>
+                                                    <option value="500">Top 500</option>
+                                                    <option value="1000">Top 1000</option>
+                                                    <option value="0">Toutes</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-check form-switch d-flex align-items-center me-3 mb-2">
+                                                <input class="form-check-input me-2" type="checkbox" id="content-links-only" onchange="toggleContentLinksOnly(this.checked)">
+                                                <label class="form-check-label" for="content-links-only">Liens de contenu uniquement</label>
+                                            </div>
+                                            <div class="form-check form-switch d-flex align-items-center mb-2">
+                                                <input class="form-check-input me-2" type="checkbox" id="use-weighted-pagerank" onchange="toggleWeightedPageRank(this.checked)">
+                                                <label class="form-check-label" for="use-weighted-pagerank">PageRank pondéré</label>
+                                            </div>
+                                        </div>
+                                        <div id="weighted-pagerank-controls" class="d-none mt-2">
+                                            <div class="row">
+                                                <div class="col-md-6 mb-2">
+                                                    <label for="alpha-slider" class="form-label">Pondération sémantique (α): <span id="alpha-value">0.5</span></label>
+                                                    <input type="range" class="form-range" id="alpha-slider" min="0" max="1" step="0.1" value="0.5" onchange="updateAlpha(this.value)">
+                                                    <small class="text-muted">0 = ignorer la sémantique, 1 = importance maximale</small>
+                                                </div>
+                                                <div class="col-md-6 mb-2">
+                                                    <label for="beta-slider" class="form-label">Pondération par position (β): <span id="beta-value">0.5</span></label>
+                                                    <input type="range" class="form-range" id="beta-slider" min="0" max="1" step="0.1" value="0.5" onchange="updateBeta(this.value)">
+                                                    <small class="text-muted">0 = ignorer la position, 1 = importance maximale</small>
+                                                </div>
+                                            </div>
+                                            <div class="d-grid gap-2 mt-2">
+                                                <button class="btn btn-primary btn-sm" onclick="applyWeightedPageRank()">Appliquer les pondérations</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="network-container" id="network-graph"></div>
+                                    </div>
+                                    <div class="network-legend mt-2">
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #007bff;"></div>
+                                            <div class="legend-label">Catégorie</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #28a745;"></div>
+                                            <div class="legend-label">Produit</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #fd7e14;"></div>
+                                            <div class="legend-label">Blog</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #6c757d;"></div>
+                                            <div class="legend-label">Autre</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #6c757d;"></div>
+                                            <div class="legend-label">Lien existant</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #28a745; border-style: dashed;"></div>
+                                            <div class="legend-label">Lien suggéré</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div id="graph-statistics" class="mb-4"></div>
+                            <div id="node-details" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="optimized-network">
+                    <div class="row">
+                        <div class="col-md-9">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Maillage optimisé</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted mb-3">
+                                        Cette vue montre le maillage actuel avec les liens suggérés ajoutés (en vert pointillé).
+                                    </p>
+                                    <div class="mb-3">
+                                        <div class="network-container" id="optimized-graph"></div>
+                                    </div>
+                                    <div class="network-legend mt-2">
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #6c757d;"></div>
+                                            <div class="legend-label">Lien existant</div>
+                                        </div>
+                                        <div class="legend-item">
+                                            <div class="legend-color" style="background-color: #28a745; border-style: dashed;"></div>
+                                            <div class="legend-label">Lien suggéré</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <!-- Les détails sont partagés entre les onglets -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-pane fade" id="pagerank-tab">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Scores PageRank</h5>
+                            <div class="pagerank-controls">
+                                <div class="input-group">
+                                    <span class="input-group-text">Tri</span>
+                                    <select id="pagerank-sort" class="form-select" onchange="updatePagerankTable(this.value)">
+                                        <option value="current_desc" selected>PageRank actuel (décroissant)</option>
+                                        <option value="current_asc">PageRank actuel (croissant)</option>
+                                        <option value="optimized_desc">PageRank optimisé (décroissant)</option>
+                                        <option value="optimized_asc">PageRank optimisé (croissant)</option>
+                                        <option value="improvement_desc">Amélioration (décroissant)</option>
+                                        <option value="improvement_asc">Amélioration (croissant)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" id="pagerank-search" class="form-control" placeholder="Rechercher une URL..." onkeyup="filterPagerankTable()">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary" onclick="exportPagerankTable('csv')">Exporter CSV</button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="exportPagerankTable('excel')">Exporter Excel</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="pagerank-table"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container text-center">
+            <p>SEO Internal Linking Tool &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/graph-visualization.js"></script>
+    <script>
+        // Initialiser la visualisation au chargement de la page
+        document.addEventListener('DOMContentLoaded', function() {
+            const jobId = '{{ job_id }}';
+            initVisualization(jobId);
+        });
+    </script>
+</body>
+</html>

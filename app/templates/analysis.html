@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse - SEO Internal Linking Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        .upload-section {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .footer {
+            margin-top: 3rem;
+            padding: 2rem 0;
+            background-color: #f8f9fa;
+        }
+        .progress-container {
+            margin-top: 2rem;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/analysis">Analyse</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/rules">Règles</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4" x-data="analysisApp()">
+        <h1 class="mb-4">Analyse de maillage interne</h1>
+        
+        <div x-show="!jobId">
+            <div class="upload-section">
+                <h3>Téléchargement des fichiers</h3>
+                <div class="mb-3">
+                    <label for="contentFile" class="form-label">Fichier de contenu (obligatoire)</label>
+                    <input class="form-control" type="file" id="contentFile" @change="handleContentFileChange">
+                    <div class="form-text">Format Excel avec colonnes: Adresse, Segments, Extracteur 1 1</div>
+                </div>
+                <div class="mb-3">
+                    <label for="linksFile" class="form-label">Fichier de liens existants (optionnel)</label>
+                    <input class="form-control" type="file" id="linksFile" @change="handleLinksFileChange">
+                    <div class="form-text">Format Excel avec colonnes: Source, Destination</div>
+                </div>
+                <div class="mb-3">
+                    <label for="gscFile" class="form-label">Fichier GSC (optionnel)</label>
+                    <input class="form-control" type="file" id="gscFile" @change="handleGscFileChange">
+                    <div class="form-text">Format Excel avec colonnes: URL, Clics, Impressions, Position</div>
+                </div>
+            </div>
+
+            <div class="upload-section">
+                <h3>Configuration de l'analyse</h3>
+                <div class="mb-3">
+                    <label for="minSimilarity" class="form-label">Score minimal de similarité</label>
+                    <input type="range" class="form-range" min="0.1" max="0.9" step="0.05" id="minSimilarity" x-model="config.minSimilarity">
+                    <div class="d-flex justify-content-between">
+                        <span>0.1</span>
+                        <span x-text="config.minSimilarity"></span>
+                        <span>0.9</span>
+                    </div>
+                    <div class="form-text">Plus la valeur est élevée, plus les suggestions seront pertinentes mais moins nombreuses</div>
+                </div>
+                <div class="mb-3">
+                    <label for="anchorSuggestions" class="form-label">Nombre de suggestions d'ancres</label>
+                    <input type="number" class="form-control" id="anchorSuggestions" min="1" max="5" x-model="config.anchorSuggestions">
+                </div>
+            </div>
+            
+            <div class="upload-section">
+                <h3>URL prioritaires</h3>
+                <p class="text-muted">Définissez une liste d'URL prioritaires dont le PageRank doit être maintenu ou amélioré lors de l'optimisation du maillage interne.</p>
+                
+                <div class="mb-3">
+                    <label for="priorityUrls" class="form-label">Liste des URL prioritaires</label>
+                    <textarea class="form-control" id="priorityUrls" rows="4" placeholder="Entrez une URL par ligne" x-model="config.priorityUrls"></textarea>
+                    <div class="form-text">Ces URL seront protégées lors de la génération du plan de maillage. Le système s'assurera que leur PageRank ne diminue pas.</div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="priorityUrlsStrict" x-model="config.priorityUrlsStrict">
+                        <label class="form-check-label" for="priorityUrlsStrict">Mode strict</label>
+                    </div>
+                    <div class="form-text">Si activé, le système garantira que les URL prioritaires améliorent leur PageRank. Sinon, il s'assurera simplement qu'elles ne perdent pas de PageRank.</div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button class="btn btn-primary" @click="startAnalysis" :disabled="!contentFilePath">Lancer l'analyse</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="jobId" class="progress-container">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Progression de l'analyse</h5>
+                    <span class="badge" :class="getStatusBadgeClass(jobStatus?.status)" x-text="getStatusLabel(jobStatus?.status)"></span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar" role="progressbar" :style="'width: ' + (jobStatus?.progress || 0) + '%'" :aria-valuenow="jobStatus?.progress || 0" aria-valuemin="0" aria-valuemax="100" x-text="(jobStatus?.progress || 0) + '%'"></div>
+                        </div>
+                    </div>
+                    <p class="mb-2"><strong>Statut actuel:</strong> <span x-text="jobStatus?.message || 'En attente...'"></span></p>
+                    <p class="mb-2"><strong>Démarré le:</strong> <span x-text="formatDate(jobStatus?.start_time)"></span></p>
+                    <p class="mb-0" x-show="jobStatus?.end_time"><strong>Terminé le:</strong> <span x-text="formatDate(jobStatus?.end_time)"></span></p>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-danger" @click="stopAnalysis" x-show="jobStatus?.status === 'running'">Arrêter l'analyse</button>
+                        <button class="btn btn-warning" @click="forceCompleteAnalysis" x-show="jobStatus?.status === 'running'">Forcer la fin de l'analyse</button>
+                        <button class="btn btn-success" @click="viewResults" x-show="jobStatus?.status === 'completed'">Voir les résultats</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Journal d'activité</h5>
+                </div>
+                <div class="card-body">
+                    <div class="log-container">
+                        <ul class="list-group list-group-flush">
+                            <template x-for="(log, index) in logHistory" :key="index">
+                                <li class="list-group-item d-flex align-items-center">
+                                    <span class="me-2" x-html="getLogIcon(log)"></span>
+                                    <span x-text="log"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container text-center">
+            <p>SEO Internal Linking Tool &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script>
+        function analysisApp() {
+            return {
+                contentFilePath: null,
+                linksFilePath: null,
+                gscFilePath: null,
+                config: {
+                    minSimilarity: 0.2,
+                    anchorSuggestions: 3,
+                    priorityUrls: '',
+                    priorityUrlsStrict: false
+                },
+                jobId: null,
+                jobStatus: null,
+                logHistory: [],
+                socket: null,
+                
+                handleContentFileChange(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    fetch('/api/upload/content', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.contentFilePath = data.saved_path;
+                        console.log('Fichier de contenu téléchargé:', data);
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du téléchargement du fichier de contenu:', error);
+                        alert('Erreur lors du téléchargement du fichier de contenu. Vérifiez le format du fichier.');
+                    });
+                },
+                
+                handleLinksFileChange(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    fetch('/api/upload/links', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.linksFilePath = data.saved_path;
+                        console.log('Fichier de liens téléchargé:', data);
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du téléchargement du fichier de liens:', error);
+                        alert('Erreur lors du téléchargement du fichier de liens. Vérifiez le format du fichier.');
+                    });
+                },
+                
+                handleGscFileChange(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    fetch('/api/upload/gsc', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.gscFilePath = data.saved_path;
+                        console.log('Fichier GSC téléchargé:', data);
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du téléchargement du fichier GSC:', error);
+                        alert('Erreur lors du téléchargement du fichier GSC. Vérifiez le format du fichier.');
+                    });
+                },
+                
+                startAnalysis() {
+                    if (!this.contentFilePath) {
+                        alert('Veuillez télécharger un fichier de contenu.');
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('content_file', this.contentFilePath);
+                    if (this.linksFilePath) formData.append('links_file', this.linksFilePath);
+                    if (this.gscFilePath) formData.append('gsc_file', this.gscFilePath);
+                    formData.append('config', JSON.stringify(this.config));
+                    
+                    fetch('/api/analyze', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.jobId = data.job_id;
+                        console.log('Analyse démarrée:', data);
+                        this.connectWebSocket();
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du démarrage de l\'analyse:', error);
+                        alert('Erreur lors du démarrage de l\'analyse.');
+                    });
+                },
+                
+                connectWebSocket() {
+                    // Créer une connexion WebSocket
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws/${this.jobId}`;
+                    
+                    this.socket = new WebSocket(wsUrl);
+                    
+                    this.socket.onopen = () => {
+                        console.log('WebSocket connecté');
+                    };
+                    
+                    this.socket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        console.log('Message WebSocket reçu:', data);
+                        
+                        this.jobStatus = data;
+                        
+                        // Ajouter le message au journal s'il est nouveau
+                        if (data.message && (this.logHistory.length === 0 || this.logHistory[this.logHistory.length - 1] !== data.message)) {
+                            this.logHistory.push(data.message);
+                        }
+                    };
+                    
+                    this.socket.onerror = (error) => {
+                        console.error('Erreur WebSocket:', error);
+                        this.fallbackToHttp();
+                    };
+                    
+                    this.socket.onclose = () => {
+                        console.log('WebSocket déconnecté');
+                        // Vérifier si l'analyse est toujours en cours
+                        if (this.jobStatus && this.jobStatus.status === 'running') {
+                            this.fallbackToHttp();
+                        }
+                    };
+                },
+                
+                fallbackToHttp() {
+                    // Utiliser HTTP pour récupérer le statut
+                    console.log('Fallback HTTP: Vérification du statut de la tâche');
+                    
+                    const checkStatus = () => {
+                        fetch(`/api/job/${this.jobId}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                this.jobStatus = data;
+                                
+                                // Ajouter le message au journal s'il est nouveau
+                                if (data.message && (this.logHistory.length === 0 || this.logHistory[this.logHistory.length - 1] !== data.message)) {
+                                    this.logHistory.push(data.message);
+                                }
+                                
+                                // Continuer à vérifier si l'analyse est toujours en cours
+                                if (data.status === 'running' || data.status === 'queued') {
+                                    setTimeout(checkStatus, 2000);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Erreur lors de la récupération du statut:', error);
+                                setTimeout(checkStatus, 5000);
+                            });
+                    };
+                    
+                    checkStatus();
+                },
+                
+                stopAnalysis() {
+                    if (!this.jobId) return;
+                    
+                    fetch(`/api/stop/${this.jobId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            this.jobStatus = data;
+                            console.log('Analyse arrêtée:', data);
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors de l\'arrêt de l\'analyse:', error);
+                            alert('Erreur lors de l\'arrêt de l\'analyse.');
+                        });
+                },
+                
+                forceCompleteAnalysis() {
+                    if (!this.jobId) return;
+                    
+                    fetch(`/api/force-complete/${this.jobId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            this.jobStatus = data;
+                            console.log('Analyse forcée à terminer:', data);
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors de la complétion forcée de l\'analyse:', error);
+                            alert('Erreur lors de la complétion forcée de l\'analyse.');
+                        });
+                },
+                
+                viewResults() {
+                    window.location.href = `/results/${this.jobId}`;
+                },
+                
+                getStatusBadgeClass(status) {
+                    switch (status) {
+                        case 'completed': return 'bg-success';
+                        case 'failed': return 'bg-danger';
+                        case 'running': return 'bg-primary';
+                        case 'queued': return 'bg-warning';
+                        default: return 'bg-secondary';
+                    }
+                },
+                
+                getStatusLabel(status) {
+                    switch (status) {
+                        case 'completed': return 'Terminé';
+                        case 'failed': return 'Échoué';
+                        case 'running': return 'En cours';
+                        case 'queued': return 'En attente';
+                        default: return 'Inconnu';
+                    }
+                },
+                
+                getLogIcon(message) {
+                    if (message.includes('Fichier de contenu chargé')) {
+                        return '<i class="bi bi-file-earmark-text text-primary"></i>';
+                    } else if (message.includes('Fichier de liens existants chargé')) {
+                        return '<i class="bi bi-link text-primary"></i>';
+                    } else if (message.includes('Fichier GSC chargé')) {
+                        return '<i class="bi bi-bar-chart text-primary"></i>';
+                    } else if (message.includes('embeddings')) {
+                        return '<i class="bi bi-cpu text-primary"></i>';
+                    } else if (message.includes('Analyse de la page')) {
+                        return '<i class="bi bi-arrow-repeat text-primary"></i>';
+                    } else if (message.includes('terminé')) {
+                        return '<i class="bi bi-check-circle text-success"></i>';
+                    } else {
+                        return '<i class="bi bi-arrow-repeat text-primary"></i>';
+                    }
+                },
+                
+                formatDate(dateString) {
+                    if (!dateString) return '';
+                    const date = new Date(dateString);
+                    return date.toLocaleString();
+                }
+            };
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+</body>
+</html>

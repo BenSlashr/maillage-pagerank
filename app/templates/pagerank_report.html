@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport PageRank - Analyse de maillage interne</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css">
+    
+    <style>
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        
+        .filter-container {
+            margin-bottom: 20px;
+        }
+        
+        .pagerank-improvement {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .pagerank-decline {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .rank-improvement {
+            color: #28a745;
+        }
+        
+        .rank-decline {
+            color: #dc3545;
+        }
+        
+        .config-panel {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>Rapport PageRank</h1>
+                    <div>
+                        <a href="/results/{{ job_id }}" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-left"></i> Retour aux résultats
+                        </a>
+                        <a href="/visualization/{{ job_id }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-graph-up"></i> Visualisation standard
+                        </a>
+                        <a href="/cytoscape/{{ job_id }}" class="btn btn-outline-info">
+                            <i class="bi bi-diagram-3"></i> Visualisation Cytoscape
+                        </a>
+                    </div>
+                </div>
+                <p class="text-muted">
+                    Ce rapport présente les scores PageRank actuels et optimisés pour votre site.
+                </p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Configuration PageRank</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="config-panel">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch d-flex align-items-center mb-2">
+                                        <input class="form-check-input me-2" type="checkbox" id="content-links-only" onchange="toggleContentLinksOnly(this.checked)">
+                                        <label class="form-check-label" for="content-links-only">Liens de contenu uniquement</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch d-flex align-items-center mb-2">
+                                        <input class="form-check-input me-2" type="checkbox" id="use-weighted-pagerank" onchange="toggleWeightedPageRank(this.checked)">
+                                        <label class="form-check-label" for="use-weighted-pagerank">PageRank pondéré</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-primary btn-sm" onclick="applyPageRankSettings()">
+                                        <i class="bi bi-arrow-repeat"></i> Appliquer les paramètres
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="weighted-pagerank-controls" class="d-none mt-3">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2">
+                                        <label for="alpha-slider" class="form-label">Pondération sémantique (α): <span id="alpha-value">0.5</span></label>
+                                        <input type="range" class="form-range" id="alpha-slider" min="0" max="1" step="0.1" value="0.5" onchange="updateAlpha(this.value)">
+                                        <small class="text-muted">0 = ignorer la sémantique, 1 = importance maximale</small>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <label for="beta-slider" class="form-label">Pondération par position (β): <span id="beta-value">0.5</span></label>
+                                        <input type="range" class="form-range" id="beta-slider" min="0" max="1" step="0.1" value="0.5" onchange="updateBeta(this.value)">
+                                        <small class="text-muted">0 = ignorer la position, 1 = importance maximale</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Tableau des scores PageRank</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="filter-container">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rechercher</span>
+                                        <input type="text" id="pagerank-search" class="form-control" placeholder="Filtrer par URL...">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary" onclick="exportPagerankTable('csv')">
+                                            <i class="bi bi-file-earmark-spreadsheet"></i> Exporter CSV
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success" onclick="exportPagerankTable('excel')">
+                                            <i class="bi bi-file-earmark-excel"></i> Exporter Excel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table id="pagerank-table" class="table table-striped table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th data-sort="url">URL</th>
+                                        <th data-sort="current_pagerank">PageRank actuel</th>
+                                        <th data-sort="current_rank">Rang actuel</th>
+                                        <th data-sort="optimized_pagerank">PageRank optimisé</th>
+                                        <th data-sort="optimized_rank">Rang optimisé</th>
+                                        <th data-sort="improvement_percentage">Amélioration (%)</th>
+                                        <th data-sort="rank_change">Changement de rang</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Le contenu sera rempli par JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section des URL prioritaires -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">URL prioritaires</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Définissez une liste d'URL prioritaires dont le PageRank doit être maintenu ou amélioré lors de l'optimisation du maillage interne.</p>
+                        
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="input-group">
+                                    <input type="text" id="priority-url-input" class="form-control" placeholder="Entrez une URL à surveiller">
+                                    <button class="btn btn-success" type="button" onclick="addPriorityURL()">Ajouter</button>
+                                </div>
+                                <small class="form-text text-muted">Vous pouvez ajouter plusieurs URL en les séparant par des virgules.</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">Liste des URL prioritaires</h6>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="clearPriorityURLs()">Tout supprimer</button>
+                                </div>
+                                <div id="priority-urls-list" class="list-group">
+                                    <div class="text-center text-muted py-3" id="no-priority-urls-message">
+                                        Aucune URL prioritaire définie
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row" id="priority-impact-section" style="display: none;">
+                            <div class="col-12">
+                                <h6 class="mb-3">Impact du maillage sur les URL prioritaires</h6>
+                                <div class="alert alert-info" id="priority-impact-summary">
+                                    Chargement de l'analyse d'impact...
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover" id="priority-impact-table">
+                                        <thead>
+                                            <tr>
+                                                <th>URL</th>
+                                                <th>PageRank actuel</th>
+                                                <th>PageRank optimisé</th>
+                                                <th>Amélioration</th>
+                                                <th>Statut</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Données générées dynamiquement -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- DataTables JS -->
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+    
+    <!-- Script personnalisé pour le rapport PageRank -->
+    <script>
+        // Variables globales
+        let pagerankData = null;
+        let pagerankTable = null;
+        let contentLinksOnly = false;
+        let useWeightedPagerank = false;
+        let alpha = 0.5;
+        let beta = 0.5;
+        
+        // Initialiser la page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Charger les données de PageRank
+            loadPagerankData();
+            
+            // Initialiser le filtre de recherche
+            document.getElementById('pagerank-search').addEventListener('keyup', filterPagerankTable);
+        });
+        
+        /**
+         * Charge les données de PageRank depuis l'API
+         */
+        async function loadPagerankData() {
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                let url;
+                if (useWeightedPagerank) {
+                    url = `/api/weighted-pagerank/${jobId}?content_links_only=${contentLinksOnly}&alpha=${alpha}&beta=${beta}`;
+                } else {
+                    url = `/api/pagerank/${jobId}?content_links_only=${contentLinksOnly}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                pagerankData = await response.json();
+                displayPagerankTable();
+                
+                // Afficher un message de notification pour le type de PageRank utilisé
+                showNotification(useWeightedPagerank ? 
+                    `PageRank pondéré appliqué (α=${alpha}, β=${beta})` : 
+                    `PageRank standard${contentLinksOnly ? ' (liens de contenu uniquement)' : ''}`);
+            } catch (error) {
+                console.error('Erreur lors du chargement des données PageRank:', error);
+                showNotification('Erreur lors du chargement des données PageRank', 'danger');
+            }
+        }
+        
+        /**
+         * Affiche le tableau des scores PageRank
+         */
+        function displayPagerankTable() {
+            if (!pagerankData) return;
+            
+            // Préparer les données pour le tableau
+            const tableData = [];
+            
+            // Parcourir les URLs dans le PageRank actuel
+            for (const url in pagerankData.current) {
+                const currentData = pagerankData.current[url];
+                const optimizedData = pagerankData.optimized ? pagerankData.optimized[url] : null;
+                const improvementData = pagerankData.improvement ? pagerankData.improvement[url] : null;
+                
+                const row = {
+                    url: url,
+                    current_pagerank: currentData.pagerank.toFixed(6),
+                    current_rank: currentData.rank,
+                    optimized_pagerank: optimizedData ? optimizedData.pagerank.toFixed(6) : '-',
+                    optimized_rank: optimizedData ? optimizedData.rank : '-',
+                    improvement_percentage: improvementData ? improvementData.percentage.toFixed(2) + '%' : '-',
+                    rank_change: improvementData ? improvementData.rank_change : '-'
+                };
+                
+                tableData.push(row);
+            }
+            
+            // Détruire le tableau existant s'il existe
+            if (pagerankTable) {
+                pagerankTable.destroy();
+            }
+            
+            // Initialiser le tableau DataTables
+            pagerankTable = $('#pagerank-table').DataTable({
+                data: tableData,
+                columns: [
+                    { data: 'url' },
+                    { data: 'current_pagerank' },
+                    { data: 'current_rank' },
+                    { data: 'optimized_pagerank' },
+                    { data: 'optimized_rank' },
+                    { 
+                        data: 'improvement_percentage',
+                        render: function(data, type, row) {
+                            if (data === '-') return data;
+                            const value = parseFloat(data);
+                            const className = value >= 0 ? 'pagerank-improvement' : 'pagerank-decline';
+                            return `<span class="${className}">${data}</span>`;
+                        }
+                    },
+                    { 
+                        data: 'rank_change',
+                        render: function(data, type, row) {
+                            if (data === '-') return data;
+                            const value = parseInt(data);
+                            const className = value >= 0 ? 'rank-improvement' : 'rank-decline';
+                            const icon = value >= 0 ? '↑' : '↓';
+                            return `<span class="${className}">${Math.abs(value)} ${icon}</span>`;
+                        }
+                    }
+                ],
+                order: [[1, 'desc']],
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Tous"]],
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/fr-FR.json'
+                },
+                dom: 'Bfrtip',
+                buttons: [
+                    'copy', 'csv', 'excel'
+                ]
+            });
+        }
+        
+        /**
+         * Filtre le tableau PageRank en fonction de la recherche
+         */
+        function filterPagerankTable() {
+            const searchTerm = document.getElementById('pagerank-search').value.toLowerCase();
+            if (pagerankTable) {
+                pagerankTable.search(searchTerm).draw();
+            }
+        }
+        
+        /**
+         * Exporte le tableau PageRank au format spécifié
+         * @param {string} format - Format d'export ('csv' ou 'excel')
+         */
+        function exportPagerankTable(format) {
+            if (!pagerankTable) return;
+            
+            if (format === 'csv') {
+                pagerankTable.button('.buttons-csv').trigger();
+            } else if (format === 'excel') {
+                pagerankTable.button('.buttons-excel').trigger();
+            }
+        }
+        
+        /**
+         * Active ou désactive le filtrage des liens par position (contenu uniquement)
+         * @param {boolean} enabled - True pour activer le filtrage, false sinon
+         */
+        function toggleContentLinksOnly(enabled) {
+            contentLinksOnly = enabled;
+            showNotification(enabled ? 
+                'Filtrage activé: liens de contenu uniquement' : 
+                'Filtrage désactivé: tous les liens sont pris en compte');
+        }
+        
+        /**
+         * Active ou désactive le PageRank pondéré
+         * @param {boolean} enabled - True pour activer le PageRank pondéré, false pour le PageRank standard
+         */
+        function toggleWeightedPageRank(enabled) {
+            useWeightedPagerank = enabled;
+            
+            // Afficher/masquer les contrôles de pondération
+            const controls = document.getElementById('weighted-pagerank-controls');
+            if (controls) {
+                controls.classList.toggle('d-none', !enabled);
+            }
+            
+            showNotification(enabled ? 
+                'PageRank pondéré activé' : 
+                'PageRank standard activé');
+        }
+        
+        /**
+         * Met à jour le coefficient alpha (pondération sémantique)
+         * @param {number} value - Nouvelle valeur de alpha (entre 0 et 1)
+         */
+        function updateAlpha(value) {
+            alpha = parseFloat(value);
+            document.getElementById('alpha-value').textContent = alpha.toFixed(1);
+        }
+        
+        /**
+         * Met à jour le coefficient beta (pondération par position)
+         * @param {number} value - Nouvelle valeur de beta (entre 0 et 1)
+         */
+        function updateBeta(value) {
+            beta = parseFloat(value);
+            document.getElementById('beta-value').textContent = beta.toFixed(1);
+        }
+        
+        /**
+         * Applique les paramètres de PageRank et recharge les données
+         */
+        function applyPageRankSettings() {
+            loadPagerankData();
+        }
+        
+        /**
+         * Récupère l'ID de la tâche depuis l'URL
+         * @returns {string|null} - ID de la tâche ou null si non trouvé
+         */
+        function getJobIdFromUrl() {
+            const pathParts = window.location.pathname.split('/');
+            // L'ID de la tâche est généralement le dernier segment de l'URL
+            const jobId = pathParts[pathParts.length - 1];
+            return jobId || null;
+        }
+        
+        /**
+         * Affiche une notification temporaire
+         * @param {string} message - Message à afficher
+         * @param {string} type - Type de notification (info, success, warning, danger)
+         */
+        function showNotification(message, type = 'info') {
+            const notificationContainer = document.getElementById('notification-container');
+            if (!notificationContainer) {
+                // Créer le conteneur s'il n'existe pas
+                const container = document.createElement('div');
+                container.id = 'notification-container';
+                container.style.position = 'fixed';
+                container.style.top = '20px';
+                container.style.right = '20px';
+                container.style.zIndex = '9999';
+                document.body.appendChild(container);
+            }
+            
+            // Créer la notification
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show`;
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            // Ajouter la notification au conteneur
+            document.getElementById('notification-container').appendChild(notification);
+            
+            // Supprimer automatiquement après 3 secondes
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Variables pour la gestion des URL prioritaires
+        let priorityUrls = [];
+        
+        /**
+         * Charge les URL prioritaires depuis l'API
+         */
+        async function loadPriorityURLs() {
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                const response = await fetch(`/api/priority-urls/${jobId}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    priorityUrls = data.urls || [];
+                    displayPriorityURLs();
+                    
+                    // Si des URL prioritaires sont définies et que les données PageRank sont chargées,
+                    // analyser l'impact du maillage sur ces URL
+                    if (priorityUrls.length > 0 && pagerankData && pagerankData.optimized) {
+                        analyzePriorityURLsImpact();
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des URL prioritaires:', error);
+            }
+        }
+        
+        /**
+         * Affiche la liste des URL prioritaires
+         */
+        function displayPriorityURLs() {
+            const listContainer = document.getElementById('priority-urls-list');
+            const noUrlsMessage = document.getElementById('no-priority-urls-message');
+            
+            // Vider la liste actuelle
+            listContainer.innerHTML = '';
+            
+            // Afficher un message si aucune URL n'est définie
+            if (priorityUrls.length === 0) {
+                listContainer.appendChild(noUrlsMessage);
+                document.getElementById('priority-impact-section').style.display = 'none';
+                return;
+            }
+            
+            // Masquer le message "aucune URL"
+            if (noUrlsMessage.parentNode === listContainer) {
+                listContainer.removeChild(noUrlsMessage);
+            }
+            
+            // Créer un élément pour chaque URL
+            priorityUrls.forEach(url => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                
+                // Créer un élément pour l'URL
+                const urlText = document.createElement('span');
+                urlText.textContent = url;
+                urlText.title = url;
+                urlText.className = 'text-truncate';
+                urlText.style.maxWidth = '80%';
+                
+                // Créer un bouton de suppression
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-sm btn-outline-danger';
+                deleteBtn.innerHTML = '<i class="bi bi-trash"></i>';
+                deleteBtn.title = 'Supprimer cette URL';
+                deleteBtn.onclick = () => removePriorityURL(url);
+                
+                // Ajouter les éléments à l'item
+                item.appendChild(urlText);
+                item.appendChild(deleteBtn);
+                
+                // Ajouter l'item à la liste
+                listContainer.appendChild(item);
+            });
+        }
+        
+        /**
+         * Ajoute une ou plusieurs URL à la liste des URL prioritaires
+         */
+        async function addPriorityURL() {
+            const input = document.getElementById('priority-url-input');
+            const value = input.value.trim();
+            
+            if (!value) {
+                showNotification('Veuillez entrer une URL', 'warning');
+                return;
+            }
+            
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                // Séparer les URL par des virgules
+                const newUrls = value.split(',').map(url => url.trim()).filter(url => url);
+                
+                if (newUrls.length === 0) {
+                    showNotification('Aucune URL valide trouvée', 'warning');
+                    return;
+                }
+                
+                // Envoyer les nouvelles URL à l'API
+                const response = await fetch(`/api/priority-urls/${jobId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newUrls)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showNotification(data.message, 'success');
+                    input.value = '';
+                    
+                    // Recharger les URL prioritaires
+                    await loadPriorityURLs();
+                    
+                    // Analyser l'impact du maillage sur les URL prioritaires
+                    if (pagerankData && pagerankData.optimized) {
+                        analyzePriorityURLsImpact();
+                    }
+                } else {
+                    showNotification('Erreur lors de l\'ajout des URL prioritaires', 'danger');
+                }
+            } catch (error) {
+                console.error('Erreur lors de l\'ajout des URL prioritaires:', error);
+                showNotification('Erreur lors de l\'ajout des URL prioritaires', 'danger');
+            }
+        }
+        
+        /**
+         * Supprime une URL de la liste des URL prioritaires
+         * @param {string} url - URL à supprimer
+         */
+        async function removePriorityURL(url) {
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                // Envoyer la demande de suppression à l'API
+                const response = await fetch(`/api/priority-urls/${jobId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify([url])
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showNotification(`URL supprimée de la liste des priorités`, 'success');
+                    
+                    // Recharger les URL prioritaires
+                    await loadPriorityURLs();
+                    
+                    // Analyser l'impact du maillage sur les URL prioritaires
+                    if (pagerankData && pagerankData.optimized) {
+                        analyzePriorityURLsImpact();
+                    }
+                } else {
+                    showNotification('Erreur lors de la suppression de l\'URL', 'danger');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la suppression de l\'URL:', error);
+                showNotification('Erreur lors de la suppression de l\'URL', 'danger');
+            }
+        }
+        
+        /**
+         * Supprime toutes les URL de la liste des URL prioritaires
+         */
+        async function clearPriorityURLs() {
+            if (priorityUrls.length === 0) {
+                showNotification('Aucune URL prioritaire à supprimer', 'info');
+                return;
+            }
+            
+            if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les URL prioritaires ?')) {
+                return;
+            }
+            
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                // Supprimer chaque URL une par une
+                for (const url of priorityUrls) {
+                    await fetch(`/api/priority-urls/${jobId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify([url])
+                    });
+                }
+                
+                showNotification('Toutes les URL prioritaires ont été supprimées', 'success');
+                
+                // Recharger les URL prioritaires
+                await loadPriorityURLs();
+                
+                // Masquer la section d'impact
+                document.getElementById('priority-impact-section').style.display = 'none';
+            } catch (error) {
+                console.error('Erreur lors de la suppression des URL prioritaires:', error);
+                showNotification('Erreur lors de la suppression des URL prioritaires', 'danger');
+            }
+        }
+        
+        /**
+         * Analyse l'impact du maillage sur les URL prioritaires
+         */
+        async function analyzePriorityURLsImpact() {
+            if (priorityUrls.length === 0) {
+                document.getElementById('priority-impact-section').style.display = 'none';
+                return;
+            }
+            
+            try {
+                const jobId = getJobIdFromUrl();
+                if (!jobId) return;
+                
+                // Récupérer les paramètres de PageRank actuels
+                const contentLinksOnly = document.getElementById('content-links-only').checked;
+                const useWeightedPagerank = document.getElementById('use-weighted-pagerank').checked;
+                const alphaValue = useWeightedPagerank ? document.getElementById('alpha-slider').value : 0.5;
+                const betaValue = useWeightedPagerank ? document.getElementById('beta-slider').value : 0.5;
+                
+                // Analyser l'impact du maillage sur les URL prioritaires
+                const response = await fetch(`/api/priority-urls/${jobId}/impact?content_links_only=${contentLinksOnly}&alpha=${alphaValue}&beta=${betaValue}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Afficher la section d'impact
+                    document.getElementById('priority-impact-section').style.display = 'block';
+                    
+                    // Mettre à jour le résumé
+                    const summary = data.summary;
+                    const summaryElement = document.getElementById('priority-impact-summary');
+                    
+                    let summaryClass = 'alert-info';
+                    if (summary.degraded > 0) {
+                        summaryClass = 'alert-danger';
+                    } else if (summary.improved > summary.maintained) {
+                        summaryClass = 'alert-success';
+                    } else if (summary.maintained > summary.improved) {
+                        summaryClass = 'alert-warning';
+                    }
+                    
+                    summaryElement.className = `alert ${summaryClass}`;
+                    summaryElement.innerHTML = `
+                        <strong>Résumé de l'impact:</strong> Sur ${summary.total} URL prioritaires, 
+                        <span class="text-success">${summary.improved} améliorées</span>, 
+                        <span class="text-warning">${summary.maintained} maintenues</span>, 
+                        <span class="text-danger">${summary.degraded} dégradées</span>
+                        ${summary.not_found > 0 ? `, <span class="text-muted">${summary.not_found} non trouvées</span>` : ''}
+                    `;
+                    
+                    // Mettre à jour le tableau d'impact
+                    const tableBody = document.querySelector('#priority-impact-table tbody');
+                    tableBody.innerHTML = '';
+                    
+                    for (const [url, impact] of Object.entries(data.impact)) {
+                        const row = document.createElement('tr');
+                        
+                        // Définir la classe de la ligne en fonction du statut
+                        if (impact.status === 'improved') {
+                            row.className = 'table-success';
+                        } else if (impact.status === 'degraded') {
+                            row.className = 'table-danger';
+                        } else if (impact.status === 'not_found') {
+                            row.className = 'table-secondary';
+                        }
+                        
+                        // URL
+                        const urlCell = document.createElement('td');
+                        urlCell.textContent = url;
+                        urlCell.title = url;
+                        urlCell.className = 'text-truncate';
+                        urlCell.style.maxWidth = '300px';
+                        row.appendChild(urlCell);
+                        
+                        // PageRank actuel
+                        const currentCell = document.createElement('td');
+                        currentCell.textContent = impact.current_pagerank !== null ? impact.current_pagerank.toFixed(6) : 'N/A';
+                        row.appendChild(currentCell);
+                        
+                        // PageRank optimisé
+                        const optimizedCell = document.createElement('td');
+                        optimizedCell.textContent = impact.optimized_pagerank !== null ? impact.optimized_pagerank.toFixed(6) : 'N/A';
+                        row.appendChild(optimizedCell);
+                        
+                        // Amélioration
+                        const improvementCell = document.createElement('td');
+                        if (impact.improvement_percentage !== null) {
+                            const improvementValue = impact.improvement_percentage;
+                            improvementCell.textContent = `${improvementValue > 0 ? '+' : ''}${improvementValue.toFixed(2)}%`;
+                            
+                            if (improvementValue > 1) {
+                                improvementCell.className = 'text-success';
+                            } else if (improvementValue < -1) {
+                                improvementCell.className = 'text-danger';
+                            }
+                        } else {
+                            improvementCell.textContent = 'N/A';
+                        }
+                        row.appendChild(improvementCell);
+                        
+                        // Statut
+                        const statusCell = document.createElement('td');
+                        let statusText = '';
+                        let statusClass = '';
+                        
+                        switch (impact.status) {
+                            case 'improved':
+                                statusText = 'Amélioré';
+                                statusClass = 'text-success';
+                                break;
+                            case 'maintained':
+                                statusText = 'Maintenu';
+                                statusClass = 'text-warning';
+                                break;
+                            case 'degraded':
+                                statusText = 'Dégradé';
+                                statusClass = 'text-danger';
+                                break;
+                            case 'not_found':
+                                statusText = 'Non trouvé';
+                                statusClass = 'text-muted';
+                                break;
+                        }
+                        
+                        statusCell.textContent = statusText;
+                        statusCell.className = statusClass;
+                        row.appendChild(statusCell);
+                        
+                        tableBody.appendChild(row);
+                    }
+                } else {
+                    showNotification('Erreur lors de l\'analyse de l\'impact sur les URL prioritaires', 'danger');
+                }
+            } catch (error) {
+                console.error('Erreur lors de l\'analyse de l\'impact sur les URL prioritaires:', error);
+                showNotification('Erreur lors de l\'analyse de l\'impact sur les URL prioritaires', 'danger');
+            }
+        }
+        
+        // Charger les URL prioritaires au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPagerankData().then(() => {
+                loadPriorityURLs();
+            });
+        });
+        
+        // Ajouter un gestionnaire d'événement pour la touche Entrée dans le champ d'entrée
+        document.getElementById('priority-url-input').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addPriorityURL();
+            }
+        });
+    </script>
+</body>
+</html>
