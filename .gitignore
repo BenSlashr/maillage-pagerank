@@ -1,0 +1,59 @@
+# Environnements virtuels
+venv/
+env/
+ENV/
+.env
+
+# Fichiers Python compilés
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.installed.cfg
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+
+# Fichiers de données et résultats
+app/data/jobs/*/
+app/results/
+*.xlsx
+*.csv
+*.json
+!app/templates/*.json
+
+# Fichiers de logs
+*.log
+
+# Fichiers système
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Fichiers d'IDE et d'éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Fichiers spécifiques à PyTorch (trop volumineux pour GitHub)
+**/torch/lib/*.dylib
+**/torch/lib/*.so
+**/torch/lib/*.dll
