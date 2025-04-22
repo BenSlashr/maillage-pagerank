@@ -1484,7 +1484,7 @@ if __name__ == "__main__":
     logging.info("Lancement de l'application via 'python app/main.py'...")
     # Configuration de Uvicorn
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8003))
 
     # Lancer Uvicorn
     uvicorn.run("app.main:app", host=host, port=port, reload=True, log_level="info")
