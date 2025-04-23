@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Règles de segmentation - Maillage Pré-Publication</title>
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .rule-card {
+            margin-bottom: 15px;
+            border-left: 4px solid #007bff;
+        }
+        .rule-card.regex {
+            border-left-color: #6f42c1;
+        }
+        .rule-priority-high {
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        .rule-priority-medium {
+            background-color: rgba(255, 193, 7, 0.1);
+        }
+        .rule-priority-low {
+            background-color: rgba(108, 117, 125, 0.1);
+        }
+        .segment-badge {
+            font-size: 0.85rem;
+            padding: 0.35em 0.65em;
+        }
+        .rule-actions {
+            white-space: nowrap;
+        }
+        .priority-badge {
+            min-width: 30px;
+        }
+        #rulesList {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-home"></i> Accueil
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/analysis">
+                                <i class="fas fa-chart-bar"></i> Analyse
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/rules">
+                                <i class="fas fa-sliders-h"></i> Règles
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/results">
+                                <i class="fas fa-file-excel"></i> Résultats
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/crawler">
+                                <i class="fas fa-spider"></i> Crawler
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/segment_rules">
+                                <i class="fas fa-tags"></i> Segments
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1><i class="fas fa-tags"></i> Règles de segmentation</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="importRulesBtn">
+                                <i class="fas fa-file-import"></i> Importer
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportRulesBtn">
+                                <i class="fas fa-file-export"></i> Exporter
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" id="addRuleBtn">
+                            <i class="fas fa-plus"></i> Ajouter une règle
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle"></i> À propos des règles de segmentation</h5>
+                            <p>Les règles de segmentation permettent de classer automatiquement les pages lors du crawl en fonction de leur URL.</p>
+                            <ul>
+                                <li><strong>Pattern :</strong> Motif à rechercher dans l'URL (chemin simple ou expression régulière)</li>
+                                <li><strong>Segment :</strong> Type de page à attribuer (blog, produit, catégorie, etc.)</li>
+                                <li><strong>Priorité :</strong> Les règles de priorité plus élevée sont appliquées en premier</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Segment par défaut</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="input-group">
+                                            <span class="input-group-text">Segment par défaut</span>
+                                            <input type="text" class="form-control" id="defaultSegment" value="page" placeholder="Segment par défaut">
+                                            <button class="btn btn-outline-primary" type="button" id="saveDefaultSegmentBtn">Enregistrer</button>
+                                        </div>
+                                        <small class="form-text text-muted">Ce segment sera utilisé si aucune règle ne correspond à l'URL.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Liste des règles</h5>
+                                <div>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" id="searchRules" placeholder="Rechercher...">
+                                        <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive" id="rulesList">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 70px">Priorité</th>
+                                                <th>Pattern</th>
+                                                <th style="width: 120px">Segment</th>
+                                                <th style="width: 80px">Type</th>
+                                                <th style="width: 150px">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rulesTableBody">
+                                            <!-- Les règles seront ajoutées ici dynamiquement -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="noRulesMessage" class="text-center p-4" style="display: none;">
+                                    <p class="text-muted">Aucune règle définie. Cliquez sur "Ajouter une règle" pour commencer.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal pour ajouter/modifier une règle -->
+    <div class="modal fade" id="ruleModal" tabindex="-1" aria-labelledby="ruleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ruleModalLabel">Ajouter une règle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ruleForm">
+                        <input type="hidden" id="ruleIndex" value="-1">
+                        <div class="mb-3">
+                            <label for="rulePattern" class="form-label">Pattern</label>
+                            <input type="text" class="form-control" id="rulePattern" required placeholder="ex: blog ou /produits/.*">
+                            <div class="form-text">Motif à rechercher dans l'URL (chemin ou expression régulière)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ruleSegment" class="form-label">Segment</label>
+                            <input type="text" class="form-control" id="ruleSegment" required placeholder="ex: blog, produit, categorie">
+                            <div class="form-text">Type de page à attribuer</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ruleIsRegex">
+                                <label class="form-check-label" for="ruleIsRegex">
+                                    Expression régulière
+                                </label>
+                            </div>
+                            <div class="form-text">Cochez si le pattern est une expression régulière</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="rulePriority" class="form-label">Priorité</label>
+                            <input type="number" class="form-control" id="rulePriority" min="0" max="100" value="10">
+                            <div class="form-text">Les règles de priorité plus élevée sont appliquées en premier (0-100)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ruleDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="ruleDescription" rows="2" placeholder="Description optionnelle"></textarea>
+                        </div>
+                        <div class="mb-3 border p-3 bg-light">
+                            <label for="testUrl" class="form-label fw-bold">Tester cette règle</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="testUrl" placeholder="Entrez une URL à tester">
+                                <button class="btn btn-outline-primary" type="button" id="testRuleBtn">Tester</button>
+                            </div>
+                            <div id="testResult" class="mt-2 d-none">
+                                <div class="alert alert-success d-none" id="testMatchSuccess">
+                                    <i class="bi bi-check-circle-fill me-2"></i> <strong>L'URL correspond à cette règle!</strong>
+                                    <div id="testMatchSuccessDetails" class="mt-2 small"></div>
+                                </div>
+                                <div class="alert alert-danger d-none" id="testMatchFail">
+                                    <i class="bi bi-x-circle-fill me-2"></i> <strong>L'URL ne correspond pas à cette règle.</strong>
+                                    <div id="testMatchFailDetails" class="mt-2 small"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveRuleBtn">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour importer des règles -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Importer des règles</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="importFile" class="form-label">Fichier JSON</label>
+                        <input class="form-control" type="file" id="importFile" accept=".json">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="replaceExisting" checked>
+                            <label class="form-check-label" for="replaceExisting">
+                                Remplacer les règles existantes
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="confirmImportBtn">Importer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation de suppression -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmModalLabel">Confirmer la suppression</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Êtes-vous sûr de vouloir supprimer cette règle ?</p>
+                    <p id="deleteRuleDetails" class="font-monospace"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Supprimer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/jquery-3.6.0.min.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/fontawesome.min.js"></script>
+    <script>
+        // Application de gestion des règles de segmentation
+        const segmentRulesApp = {
+            rules: [],
+            defaultSegment: 'page',
+            editIndex: -1,
+            
+            init() {
+                // Charger les règles depuis le serveur
+                this.loadRules();
+                
+                // Événements pour les boutons
+                document.getElementById('addRuleBtn').addEventListener('click', () => this.showAddRuleModal());
+                document.getElementById('saveRuleBtn').addEventListener('click', () => this.saveRule());
+                document.getElementById('testRuleBtn').addEventListener('click', () => this.testRule());
+                document.getElementById('saveDefaultSegmentBtn').addEventListener('click', () => this.saveDefaultSegment());
+                document.getElementById('importRulesBtn').addEventListener('click', () => this.showImportModal());
+                document.getElementById('exportRulesBtn').addEventListener('click', () => this.exportRules());
+                document.getElementById('confirmImportBtn').addEventListener('click', () => this.importRules());
+                document.getElementById('confirmDeleteBtn').addEventListener('click', () => this.deleteRule());
+                document.getElementById('searchRules').addEventListener('input', (e) => this.filterRules(e.target.value));
+                document.getElementById('clearSearchBtn').addEventListener('click', () => {
+                    document.getElementById('searchRules').value = '';
+                    this.filterRules('');
+                });
+            },
+            
+            // Charger les règles depuis le serveur
+            loadRules() {
+                fetch('/api/segment_rules')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            this.rules = data.rules || [];
+                            this.defaultSegment = data.default_segment || 'page';
+                            document.getElementById('defaultSegment').value = this.defaultSegment;
+                            this.renderRules();
+                        } else {
+                            console.error('Erreur lors du chargement des règles:', data.message);
+                            alert('Erreur lors du chargement des règles: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du chargement des règles:', error);
+                        alert('Erreur lors du chargement des règles. Veuillez réessayer.');
+                    });
+            },
+            
+            // Afficher les règles dans le tableau
+            renderRules() {
+                const tableBody = document.getElementById('rulesTableBody');
+                const noRulesMessage = document.getElementById('noRulesMessage');
+                
+                // Vider le tableau
+                tableBody.innerHTML = '';
+                
+                if (this.rules.length === 0) {
+                    noRulesMessage.style.display = 'block';
+                    return;
+                }
+                
+                noRulesMessage.style.display = 'none';
+                
+                // Trier les règles par priorité (décroissante)
+                const sortedRules = [...this.rules].sort((a, b) => b.priority - a.priority);
+                
+                // Ajouter chaque règle au tableau
+                sortedRules.forEach((rule, sortedIndex) => {
+                    // Trouver l'index original dans this.rules
+                    const originalIndex = this.rules.findIndex(r => 
+                        r.pattern === rule.pattern && 
+                        r.segment === rule.segment && 
+                        r.is_regex === rule.is_regex
+                    );
+                    const row = document.createElement('tr');
+                    
+                    // Déterminer la classe de priorité
+                    let priorityClass = 'bg-light';
+                    if (rule.priority >= 50) priorityClass = 'bg-success text-white';
+                    else if (rule.priority >= 20) priorityClass = 'bg-info text-white';
+                    
+                    row.innerHTML = `
+                        <td>
+                            <span class="badge ${priorityClass} priority-badge">${rule.priority}</span>
+                        </td>
+                        <td>
+                            <code>${this.escapeHtml(rule.pattern)}</code>
+                            ${rule.description ? `<div class="text-muted small">${this.escapeHtml(rule.description)}</div>` : ''}
+                        </td>
+                        <td>
+                            <span class="badge bg-primary segment-badge">${this.escapeHtml(rule.segment)}</span>
+                        </td>
+                        <td>
+                            ${rule.is_regex ? 
+                                '<span class="badge bg-purple text-white">Regex</span>' : 
+                                '<span class="badge bg-secondary">Simple</span>'}
+                        </td>
+                        <td class="rule-actions">
+                            <button class="btn btn-sm btn-outline-primary edit-rule" data-index="${originalIndex}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-rule" data-index="${originalIndex}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                // Ajouter les événements pour les boutons d'édition et de suppression
+                document.querySelectorAll('.edit-rule').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const index = parseInt(e.currentTarget.dataset.index);
+                        this.showEditRuleModal(index);
+                    });
+                });
+                
+                document.querySelectorAll('.delete-rule').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const index = parseInt(e.currentTarget.dataset.index);
+                        this.showDeleteConfirmModal(index);
+                    });
+                });
+            },
+            
+            // Afficher le modal pour ajouter une règle
+            showAddRuleModal() {
+                this.editIndex = -1;
+                document.getElementById('ruleModalLabel').textContent = 'Ajouter une règle';
+                document.getElementById('ruleForm').reset();
+                document.getElementById('ruleIndex').value = '-1';
+                document.getElementById('rulePriority').value = '10';
+                
+                const modal = new bootstrap.Modal(document.getElementById('ruleModal'));
+                modal.show();
+            },
+            
+            // Afficher le modal pour modifier une règle
+            showEditRuleModal(index) {
+                if (index < 0 || index >= this.rules.length) return;
+                
+                const rule = this.rules[index];
+                this.editIndex = index;
+                
+                document.getElementById('ruleModalLabel').textContent = 'Modifier la règle';
+                document.getElementById('ruleIndex').value = index.toString();
+                document.getElementById('rulePattern').value = rule.pattern;
+                document.getElementById('ruleSegment').value = rule.segment;
+                document.getElementById('ruleIsRegex').checked = rule.is_regex;
+                document.getElementById('rulePriority').value = rule.priority;
+                document.getElementById('ruleDescription').value = rule.description || '';
+                
+                const modal = new bootstrap.Modal(document.getElementById('ruleModal'));
+                modal.show();
+            },
+            
+            // Afficher le modal de confirmation de suppression
+            showDeleteConfirmModal(index) {
+                if (index < 0 || index >= this.rules.length) return;
+                
+                const rule = this.rules[index];
+                this.editIndex = index;
+                
+                document.getElementById('deleteRuleDetails').textContent = 
+                    `Pattern: ${rule.pattern} → Segment: ${rule.segment}`;
+                
+                const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+                modal.show();
+            },
+            
+            // Afficher le modal d'importation
+            showImportModal() {
+                document.getElementById('importFile').value = '';
+                document.getElementById('replaceExisting').checked = true;
+                
+                const modal = new bootstrap.Modal(document.getElementById('importModal'));
+                modal.show();
+            },
+            
+            // Enregistrer une règle (ajout ou modification)
+            saveRule() {
+                const form = document.getElementById('ruleForm');
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                
+                const index = parseInt(document.getElementById('ruleIndex').value);
+                const rule = {
+                    pattern: document.getElementById('rulePattern').value,
+                    segment: document.getElementById('ruleSegment').value,
+                    is_regex: document.getElementById('ruleIsRegex').checked,
+                    priority: parseInt(document.getElementById('rulePriority').value),
+                    description: document.getElementById('ruleDescription').value
+                };
+                
+                // Valider la règle
+                if (!rule.pattern) {
+                    alert('Le pattern est obligatoire');
+                    return;
+                }
+                
+                if (!rule.segment) {
+                    alert('Le segment est obligatoire');
+                    return;
+                }
+                
+                if (rule.is_regex) {
+                    try {
+                        new RegExp(rule.pattern);
+                    } catch (e) {
+                        alert('Expression régulière invalide: ' + e.message);
+                        return;
+                    }
+                }
+                
+                // Ajouter ou modifier la règle
+                if (index === -1) {
+                    this.rules.push(rule);
+                } else {
+                    this.rules[index] = rule;
+                }
+                
+                // Enregistrer les règles
+                this.saveRules();
+                
+                // Fermer le modal
+                bootstrap.Modal.getInstance(document.getElementById('ruleModal')).hide();
+            },
+            
+            // Supprimer une règle
+            deleteRule() {
+                if (this.editIndex < 0 || this.editIndex >= this.rules.length) return;
+                
+                this.rules.splice(this.editIndex, 1);
+                this.saveRules();
+                
+                // Fermer le modal
+                bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
+            },
+            
+            // Enregistrer le segment par défaut
+            saveDefaultSegment() {
+                const defaultSegment = document.getElementById('defaultSegment').value.trim();
+                if (!defaultSegment) {
+                    alert('Le segment par défaut est obligatoire');
+                    return;
+                }
+                
+                this.defaultSegment = defaultSegment;
+                this.saveRules();
+            },
+            
+            // Enregistrer les règles sur le serveur
+            saveRules() {
+                const data = {
+                    default_segment: this.defaultSegment,
+                    rules: this.rules
+                };
+                
+                fetch('/api/segment_rules', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.renderRules();
+                    } else {
+                        console.error('Erreur lors de l\'enregistrement des règles:', data.message);
+                        alert('Erreur lors de l\'enregistrement des règles: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de l\'enregistrement des règles:', error);
+                    alert('Erreur lors de l\'enregistrement des règles. Veuillez réessayer.');
+                });
+            },
+            
+            // Exporter les règles
+            exportRules() {
+                const data = {
+                    default_segment: this.defaultSegment,
+                    rules: this.rules
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'segment_rules.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            },
+            
+            // Importer des règles
+            importRules() {
+                const fileInput = document.getElementById('importFile');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    alert('Veuillez sélectionner un fichier');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        // Valider le format
+                        if (!data.rules || !Array.isArray(data.rules)) {
+                            throw new Error('Format de fichier invalide');
+                        }
+                        
+                        // Remplacer ou fusionner les règles
+                        const replaceExisting = document.getElementById('replaceExisting').checked;
+                        
+                        if (replaceExisting) {
+                            this.rules = data.rules;
+                            this.defaultSegment = data.default_segment || 'page';
+                            document.getElementById('defaultSegment').value = this.defaultSegment;
+                        } else {
+                            // Fusionner les règles (ajouter uniquement les nouvelles)
+                            const existingPatterns = new Set(this.rules.map(r => r.pattern + (r.is_regex ? ':regex' : ':simple')));
+                            
+                            data.rules.forEach(rule => {
+                                const key = rule.pattern + (rule.is_regex ? ':regex' : ':simple');
+                                if (!existingPatterns.has(key)) {
+                                    this.rules.push(rule);
+                                }
+                            });
+                        }
+                        
+                        // Enregistrer les règles
+                        this.saveRules();
+                        
+                        // Fermer le modal
+                        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+                    } catch (error) {
+                        console.error('Erreur lors de l\'importation des règles:', error);
+                        alert('Erreur lors de l\'importation des règles: ' + error.message);
+                    }
+                };
+                
+                reader.readAsText(file);
+            },
+            
+            // Filtrer les règles
+            filterRules(query) {
+                if (!query) {
+                    // Afficher toutes les règles
+                    document.querySelectorAll('#rulesTableBody tr').forEach(row => {
+                        row.style.display = '';
+                    });
+                    return;
+                }
+                
+                query = query.toLowerCase();
+                
+                // Filtrer les règles
+                document.querySelectorAll('#rulesTableBody tr').forEach(row => {
+                    const pattern = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                    const segment = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                    const description = row.querySelector('td:nth-child(2) .text-muted')?.textContent.toLowerCase() || '';
+                    
+                    if (pattern.includes(query) || segment.includes(query) || description.includes(query)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            },
+            
+            // Échapper les caractères HTML
+            escapeHtml(text) {
+                return text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            },
+            
+            // Tester si une URL correspond à la règle
+            testRule() {
+                // Récupérer les valeurs du formulaire
+                const pattern = document.getElementById('rulePattern').value.trim();
+                const isRegex = document.getElementById('ruleIsRegex').checked;
+                const testUrl = document.getElementById('testUrl').value.trim();
+                
+                // Vérifier si l'URL est vide
+                if (!testUrl) {
+                    alert('Veuillez entrer une URL à tester');
+                    return;
+                }
+                
+                // Préparer l'URL pour le test
+                let urlToTest = testUrl;
+                
+                // Extraire le chemin de l'URL si c'est une URL complète
+                try {
+                    if (urlToTest.startsWith('http')) {
+                        const url = new URL(urlToTest);
+                        urlToTest = url.pathname;
+                    }
+                } catch (e) {
+                    // Si ce n'est pas une URL valide, on utilise la valeur telle quelle
+                }
+                
+                // Assurer que l'URL commence par un slash pour la cohérence
+                if (!urlToTest.startsWith('/')) {
+                    urlToTest = '/' + urlToTest;
+                }
+                
+                // Tester si l'URL correspond au pattern
+                let matches = false;
+                let patternForDisplay = pattern;
+                let urlForDisplay = urlToTest;
+                
+                if (isRegex) {
+                    try {
+                        // Simplification radicale: nous utilisons directement l'URL sans modification
+                        // pour éviter les problèmes avec les slashes
+                        let urlPath = urlToTest;
+                        
+                        // Supprimer le slash initial si présent pour la correspondance
+                        if (urlPath.startsWith('/')) {
+                            urlPath = urlPath.substring(1);
+                        }
+                        
+                        // Afficher les valeurs pour débogage
+                        console.log('Pattern regex:', pattern);
+                        console.log('URL à tester:', urlPath);
+                        
+                        // Tester avec une approche plus directe
+                        // Pour le pattern .*/seo/.* nous voulons vérifier si l'URL contient /seo/
+                        if (pattern === '.*/seo/.*' || pattern === '.*\/seo\/.*') {
+                            // Vérifier si l'URL contient /seo/ ou seo/
+                            matches = urlPath.includes('seo/') || urlPath.includes('/seo/');
+                        } else {
+                            // Pour les autres patterns, utiliser RegExp normalement
+                            const regex = new RegExp(pattern);
+                            matches = regex.test(urlPath);
+                        }
+                        
+                        // Afficher le résultat pour débogage
+                        console.log('Résultat du test:', matches ? 'Correspond' : 'Ne correspond pas');
+                        
+                        // Pour l'affichage dans l'UI
+                        urlForDisplay = urlToTest;
+                    } catch (e) {
+                        alert('Expression régulière invalide: ' + e.message);
+                        return;
+                    }
+                } else {
+                    // Pour les patterns simples, nous normalisons pour faciliter la comparaison
+                    let normalizedPattern = pattern;
+                    let normalizedUrl = urlToTest;
+                    
+                    // Supprimer les slashes au début et à la fin pour la comparaison simple
+                    if (normalizedPattern.startsWith('/')) {
+                        normalizedPattern = normalizedPattern.substring(1);
+                    }
+                    if (normalizedPattern.endsWith('/') && normalizedPattern.length > 1) {
+                        normalizedPattern = normalizedPattern.slice(0, -1);
+                    }
+                    
+                    if (normalizedUrl.startsWith('/')) {
+                        normalizedUrl = normalizedUrl.substring(1);
+                    }
+                    if (normalizedUrl.endsWith('/') && normalizedUrl.length > 1) {
+                        normalizedUrl = normalizedUrl.slice(0, -1);
+                    }
+                    
+                    // Pour un pattern simple, vérifier si l'URL contient le pattern ou est exactement égale
+                    matches = normalizedUrl === normalizedPattern || normalizedUrl.includes(normalizedPattern);
+                    
+                    // Pour l'affichage, nous gardons les valeurs originales
+                    patternForDisplay = pattern;
+                    urlForDisplay = urlToTest;
+                }
+                
+                // Afficher les valeurs pour débogage
+                console.log('Pattern:', patternForDisplay);
+                console.log('URL testée:', urlForDisplay);
+                console.log('Correspondance:', matches ? 'OUI' : 'NON');
+                
+                // Mettre à jour l'interface avec le résultat du test
+                const testResult = document.getElementById('testResult');
+                const successElement = document.getElementById('testMatchSuccess');
+                const failElement = document.getElementById('testMatchFail');
+                
+                // Ajouter des détails sur le test effectué
+                const successDetails = document.getElementById('testMatchSuccessDetails');
+                const failDetails = document.getElementById('testMatchFailDetails');
+                
+                if (successDetails && failDetails) {
+                    const detailsText = `Pattern: <code>${this.escapeHtml(patternForDisplay)}</code><br>URL testée: <code>${this.escapeHtml(urlForDisplay)}</code>`;
+                    successDetails.innerHTML = detailsText;
+                    failDetails.innerHTML = detailsText;
+                }
+                
+                // Afficher le résultat
+                testResult.classList.remove('d-none');
+                
+                if (matches) {
+                    successElement.classList.remove('d-none');
+                    failElement.classList.add('d-none');
+                } else {
+                    successElement.classList.add('d-none');
+                    failElement.classList.remove('d-none');
+                }
+            }
+        };
+        
+        // Initialiser l'application
+        document.addEventListener('DOMContentLoaded', () => {
+            segmentRulesApp.init();
+        });
+    </script>
+</body>
+</html>

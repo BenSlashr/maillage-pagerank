@@ -7,6 +7,7 @@ import logging
 import networkx as nx
 import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
+from .normalize_columns import normalize_link_columns
 
 def is_html_page(url: str) -> bool:
     """
@@ -59,6 +60,8 @@ def calculate_pagerank(links_df: pd.DataFrame, damping_factor: float = 0.85, max
     try:
         # Créer un graphe dirigé
         G = nx.DiGraph()
+        # Normaliser les noms de colonnes pour les liens
+        links_df = normalize_link_columns(links_df)
         
         # Vérifier que les colonnes nécessaires existent
         if 'Source' not in links_df.columns or 'Destination' not in links_df.columns:
@@ -134,6 +137,8 @@ def calculate_weighted_pagerank(
         Dictionary mapping URLs to their weighted PageRank scores
     """
     try:
+        # Normaliser les noms de colonnes pour les liens
+        links_df = normalize_link_columns(links_df)
         # Créer un graphe dirigé
         G = nx.DiGraph()
         
@@ -227,6 +232,9 @@ def calculate_pagerank_with_suggestions(
         suggested_links_df: DataFrame des liens suggérés
         damping_factor: Facteur d'amortissement
         max_iterations: Nombre maximum d'itérations
+        # Normaliser les noms de colonnes pour les liens
+        existing_links_df = normalize_link_columns(existing_links_df)
+        suggested_links_df = normalize_link_columns(suggested_links_df)
         content_links_only: Si True, ne prend en compte que les liens dans le contenu principal
         
     Returns:
@@ -393,6 +401,9 @@ def calculate_weighted_pagerank_with_suggestions(
         max_iterations: Nombre maximum d'itérations
         content_links_only: Si True, ne prend en compte que les liens dans le contenu principal
         alpha: Coefficient pour la pondération sémantique (entre 0 et 1)
+        # Normaliser les noms de colonnes pour les liens
+        existing_links_df = normalize_link_columns(existing_links_df)
+        suggested_links_df = normalize_link_columns(suggested_links_df)
         beta: Coefficient pour la pondération par position (entre 0 et 1)
         priority_urls: Liste des URL prioritaires dont le PageRank doit être maintenu ou amélioré
         priority_urls_strict: Si True, les URL prioritaires doivent améliorer leur PageRank; sinon, elles doivent au moins le maintenir
@@ -513,6 +524,10 @@ def prepare_graph_data(
     Args:
         content_df: DataFrame avec les informations sur les pages
         links_df: DataFrame des liens existants
+    # Normaliser les noms de colonnes pour les liens
+    links_df = normalize_link_columns(links_df)
+    if suggested_links_df is not None:
+        suggested_links_df = normalize_link_columns(suggested_links_df)
         suggested_links_df: DataFrame des liens suggérés (optionnel)
         pagerank_current: Scores PageRank actuels (optionnel)
         pagerank_optimized: Scores PageRank optimisés (optionnel)

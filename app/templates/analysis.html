@@ -48,31 +48,59 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/rules">Règles</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/crawler">Crawler</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/segment_rules">Segments</a>
+                    </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4" x-data="analysisApp()">
+    <div class="container mt-4" x-data="analysisApp()" x-init="init()">
         <h1 class="mb-4">Analyse de maillage interne</h1>
         
         <div x-show="!jobId">
             <div class="upload-section">
                 <h3>Téléchargement des fichiers</h3>
-                <div class="mb-3">
-                    <label for="contentFile" class="form-label">Fichier de contenu (obligatoire)</label>
-                    <input class="form-control" type="file" id="contentFile" @change="handleContentFileChange">
-                    <div class="form-text">Format Excel avec colonnes: Adresse, Segments, Extracteur 1 1</div>
+                
+                <!-- Affichage des fichiers pré-remplis -->
+                <div class="alert alert-info mb-3" x-show="contentFilePath || linksFilePath || gscFilePath">
+                    <h5><i class="bi bi-info-circle"></i> Fichiers pré-remplis détectés</h5>
+                    <p>Les fichiers suivants ont été pré-sélectionnés :</p>
+                    <ul>
+                        <li x-show="contentFilePath">Fichier de contenu : <strong x-text="contentFilePath"></strong></li>
+                        <li x-show="linksFilePath">Fichier de liens : <strong x-text="linksFilePath"></strong></li>
+                        <li x-show="gscFilePath">Fichier GSC : <strong x-text="gscFilePath"></strong></li>
+                    </ul>
+                    <button class="btn btn-primary" @click="startAnalysisWithPrefilledFiles">Lancer l'analyse avec ces fichiers</button>
                 </div>
-                <div class="mb-3">
-                    <label for="linksFile" class="form-label">Fichier de liens existants (optionnel)</label>
-                    <input class="form-control" type="file" id="linksFile" @change="handleLinksFileChange">
-                    <div class="form-text">Format Excel avec colonnes: Source, Destination</div>
+                
+                <!-- Formulaire standard pour le téléchargement de fichiers -->
+                <div x-show="!contentFilePath">
+                    <div class="mb-3">
+                        <label for="contentFile" class="form-label">Fichier de contenu (obligatoire)</label>
+                        <input class="form-control" type="file" id="contentFile" @change="handleContentFileChange">
+                        <div class="form-text">Format Excel avec colonnes: Adresse, Segments, Extracteur 1 1</div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="gscFile" class="form-label">Fichier GSC (optionnel)</label>
-                    <input class="form-control" type="file" id="gscFile" @change="handleGscFileChange">
-                    <div class="form-text">Format Excel avec colonnes: URL, Clics, Impressions, Position</div>
+                
+                <div x-show="!linksFilePath">
+                    <div class="mb-3">
+                        <label for="linksFile" class="form-label">Fichier de liens existants (optionnel)</label>
+                        <input class="form-control" type="file" id="linksFile" @change="handleLinksFileChange">
+                        <div class="form-text">Format Excel avec colonnes: Source, Destination</div>
+                    </div>
+                </div>
+                
+                <div x-show="!gscFilePath">
+                    <div class="mb-3">
+                        <label for="gscFile" class="form-label">Fichier GSC (optionnel)</label>
+                        <input class="form-control" type="file" id="gscFile" @change="handleGscFileChange">
+                        <div class="form-text">Format Excel avec colonnes: URL, Clics, Impressions, Position</div>
+                    </div>
                 </div>
             </div>
 
@@ -185,6 +213,31 @@
                 jobStatus: null,
                 logHistory: [],
                 socket: null,
+                
+                // Initialisation à partir des paramètres d'URL
+                init() {
+                    // Récupérer les paramètres d'URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const contentParam = urlParams.get('content');
+                    const linksParam = urlParams.get('links');
+                    const gscParam = urlParams.get('gsc');
+                    
+                    // Si des paramètres sont présents, les utiliser pour pré-remplir les champs
+                    if (contentParam) {
+                        this.contentFilePath = contentParam;
+                        console.log('Fichier de contenu pré-rempli:', contentParam);
+                    }
+                    
+                    if (linksParam) {
+                        this.linksFilePath = linksParam;
+                        console.log('Fichier de liens pré-rempli:', linksParam);
+                    }
+                    
+                    if (gscParam) {
+                        this.gscFilePath = gscParam;
+                        console.log('Fichier GSC pré-rempli:', gscParam);
+                    }
+                },
                 
                 handleContentFileChange(event) {
                     const file = event.target.files[0];
@@ -422,6 +475,56 @@
                     if (!dateString) return '';
                     const date = new Date(dateString);
                     return date.toLocaleString();
+                },
+                
+                // Méthode pour lancer l'analyse avec les fichiers pré-remplis
+                startAnalysisWithPrefilledFiles() {
+                    if (!this.contentFilePath) {
+                        alert('Le fichier de contenu est obligatoire pour lancer l\'analyse.');
+                        return;
+                    }
+                    
+                    // Préparer les données pour l'analyse
+                    const formData = new FormData();
+                    
+                    // Construire les chemins complets des fichiers
+                    const fullContentPath = `app/uploads/${this.contentFilePath}`;
+                    formData.append('content_file', fullContentPath);
+                    console.log('Chemin complet du fichier de contenu:', fullContentPath);
+                    
+                    if (this.linksFilePath) {
+                        const fullLinksPath = `app/uploads/${this.linksFilePath}`;
+                        formData.append('links_file', fullLinksPath);
+                        console.log('Chemin complet du fichier de liens:', fullLinksPath);
+                    }
+                    
+                    if (this.gscFilePath) {
+                        const fullGscPath = `app/uploads/${this.gscFilePath}`;
+                        formData.append('gsc_file', fullGscPath);
+                        console.log('Chemin complet du fichier GSC:', fullGscPath);
+                    }
+                    
+                    // Ajouter la configuration
+                    formData.append('config', JSON.stringify(this.config));
+                    
+                    // Lancer l'analyse
+                    fetch('/api/analyze', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.job_id) {
+                            this.jobId = data.job_id;
+                            this.connectWebSocket();
+                        } else {
+                            alert('Erreur lors du lancement de l\'analyse: ' + (data.error || 'Erreur inconnue'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur:', error);
+                        alert('Erreur lors du lancement de l\'analyse: ' + error.message);
+                    });
                 }
             };
         }

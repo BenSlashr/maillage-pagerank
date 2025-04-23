@@ -89,237 +89,37 @@ class SEOAnalyzer:
         logging.info("Chargement des données...")
         if self.progress_callback:
             await self.progress_callback("Chargement des données...", 0, 100)
-            
-        # Normaliser les chemins de fichiers pour s'assurer qu'ils sont absolus
-        content_file = self._normalize_file_path(content_file)
-        if links_file:
-            links_file = self._normalize_file_path(links_file)
-        if gsc_file:
-            gsc_file = self._normalize_file_path(gsc_file)
-            
-        # Vérifier l'existence des fichiers avant de continuer
-        if not os.path.exists(content_file):
-            error_msg = f"Fichier de contenu introuvable: {content_file}"
-            logging.error(error_msg)
-            raise FileNotFoundError(error_msg)
         
         # Charger le contenu des pages
-        logging.info(f"Chargement du fichier de contenu: {content_file}")
         content_df = pd.read_excel(content_file)
         
-        # Normaliser les noms de colonnes pour accepter différents formats
-        # Mapper les noms de colonnes alternatifs vers les noms attendus
-        column_mapping = {
-            # Mappings standard
-            "Adresse": "url",
-            "URL": "url",
-            "Titre": "title",
-            "Title": "title",
-            "Title 1": "title",  # Screaming Frog
-            "Contenu": "content1",
-            "Content": "content1",
-            "Type": "type",
-            "Type de contenu": "type",  # Screaming Frog
-            "Segments": "type"  # Utiliser la colonne Segments comme type si disponible
-        }
-        
-        # Détection des formats de fichiers (Screaming Frog ou crawler intégré)
-        is_screaming_frog = False
-        is_internal_crawler = False
-        
-        # Détection du crawler intégré
-        if "Adresse" in content_df.columns and "Extracteur 1 1" in content_df.columns and "Titre" in content_df.columns and "H1" in content_df.columns:
-            is_internal_crawler = True
-            logging.info("Détection d'un export du crawler intégré")
-            
-            # Créer une colonne de contenu combinée pour les exports du crawler intégré
-            content_columns = []
-            
-            # Ajouter le titre s'il existe
-            if "Titre" in content_df.columns:
-                content_columns.append("Titre")
-                
-            # Ajouter la balise H1 si elle existe
-            if "H1" in content_df.columns:
-                content_columns.append("H1")
-                
-            # Ajouter l'extracteur de contenu si disponible
-            if "Extracteur 1 1" in content_df.columns:
-                content_columns.append("Extracteur 1 1")
-                logging.info("Utilisation de la colonne 'Extracteur 1 1' pour enrichir le contenu")
-            
-            # Combiner toutes ces colonnes en une seule colonne de contenu
-            if content_columns:
-                logging.info(f"Création d'une colonne de contenu combinée à partir de: {', '.join(content_columns)}")
-                content_df['content1'] = content_df[content_columns].apply(
-                    lambda row: ' '.join([str(val) for val in row if pd.notna(val) and str(val).strip() != '']), 
-                    axis=1
-                )
-            
-            # Si la colonne Type n'existe pas, utiliser Segments
-            if "Segments" in content_df.columns:
-                content_df['type'] = content_df['Segments']
-            else:
-                # Créer une colonne type par défaut si nécessaire
-                content_df['type'] = "page"
-                
-        # Détection de Screaming Frog
-        elif "Title 1" in content_df.columns and ("H1-1" in content_df.columns or any(col.startswith("H1-") for col in content_df.columns)):
-            is_screaming_frog = True
-            logging.info("Détection d'un export Screaming Frog")
-            
-            # Créer une colonne de contenu combinée pour les exports Screaming Frog
-            content_columns = []
-            
-            # Ajouter le titre s'il existe
-            if "Title 1" in content_df.columns:
-                content_columns.append("Title 1")
-                
-            # Ajouter les balises H1 s'ils existent
-            h1_columns = [col for col in content_df.columns if col.startswith("H1-") and not col.startswith("H1-Longueur")]
-            content_columns.extend(h1_columns)
-            
-            # Ajouter les balises H2 s'ils existent
-            h2_columns = [col for col in content_df.columns if col.startswith("H2-") and not col.startswith("H2-Longueur")]
-            content_columns.extend(h2_columns)
-            
-            # Ajouter la meta description si elle existe
-            if "Meta Description 1" in content_df.columns:
-                content_columns.append("Meta Description 1")
-                
-            # Ajouter l'extracteur de contenu si disponible (contient souvent le contenu principal de la page)
-            if "Extracteur 1 1" in content_df.columns:
-                content_columns.append("Extracteur 1 1")
-                logging.info("Utilisation de la colonne 'Extracteur 1 1' pour enrichir le contenu")
-            
-            # Combiner toutes ces colonnes en une seule colonne de contenu
-            if content_columns:
-                logging.info(f"Création d'une colonne de contenu combinée à partir de: {', '.join(content_columns)}")
-                content_df['content1'] = content_df[content_columns].apply(
-                    lambda row: ' '.join([str(val) for val in row if pd.notna(val) and str(val).strip() != '']), 
-                    axis=1
-                )
-            
-            # Si la colonne Type n'existe pas, utiliser Segments ou Type de contenu
-            if "Segments" in content_df.columns:
-                content_df['type'] = content_df['Segments']
-            elif "Type de contenu" in content_df.columns:
-                content_df['type'] = content_df['Type de contenu']
-            else:
-                # Créer une colonne type par défaut si nécessaire
-                content_df['type'] = "page"
-        
-        # Renommer les colonnes si nécessaire
-        for alt_col, std_col in column_mapping.items():
-            if alt_col in content_df.columns and std_col not in content_df.columns:
-                content_df.rename(columns={alt_col: std_col}, inplace=True)
-                logging.info(f"Colonne '{alt_col}' renommée en '{std_col}'")
-        
-        # Vérifier les colonnes requises après normalisation
+        # Vérifier les colonnes requises
         required_columns = ["url", "title", "content1", "type"]
-        missing_columns = [col for col in required_columns if col not in content_df.columns]
-        
-        if missing_columns:
-            # Afficher les colonnes disponibles pour faciliter le débogage
-            available_columns = ", ".join(content_df.columns)
-            raise ValueError(f"Colonnes requises manquantes dans le fichier de contenu: {', '.join(missing_columns)}. Colonnes disponibles: {available_columns}")
+        for col in required_columns:
+            if col not in content_df.columns:
+                raise ValueError(f"Colonne requise manquante dans le fichier de contenu: {col}")
         
         # Charger les liens existants si disponibles
         existing_links_df = None
-        if links_file:
-            if os.path.exists(links_file):
-                logging.info(f"Chargement des liens existants: {links_file}")
-                existing_links_df = pd.read_excel(links_file)
-            else:
-                logging.warning(f"Fichier de liens introuvable: {links_file}")
+        if links_file and os.path.exists(links_file):
+            existing_links_df = pd.read_excel(links_file)
             
-            # Normaliser les noms de colonnes pour le fichier de liens
-            links_column_mapping = {
-                "Source": "source",
-                "URL source": "source",
-                "URL Source": "source",
-                "Adresse source": "source",
-                "Target": "target",
-                "Cible": "target",
-                "URL cible": "target",
-                "URL Cible": "target",
-                "Adresse cible": "target",
-                "Destination": "target"
-            }
-            
-            # Vérifier si les colonnes Source/Destination existent déjà
-            if "Source" in existing_links_df.columns and "Destination" in existing_links_df.columns:
-                logging.info("Détection des colonnes Source/Destination dans le fichier de liens")
-                existing_links_df.rename(columns={"Source": "source", "Destination": "target"}, inplace=True)
-            
-            # Renommer les colonnes si nécessaire
-            for alt_col, std_col in links_column_mapping.items():
-                if alt_col in existing_links_df.columns and std_col not in existing_links_df.columns:
-                    existing_links_df.rename(columns={alt_col: std_col}, inplace=True)
-                    logging.info(f"Colonne '{alt_col}' renommée en '{std_col}' dans le fichier de liens")
-            
-            # Vérifier les colonnes requises après normalisation
+            # Vérifier les colonnes requises
             required_columns = ["source", "target"]
-            missing_columns = [col for col in required_columns if col not in existing_links_df.columns]
-            
-            if missing_columns:
-                # Afficher les colonnes disponibles pour faciliter le débogage
-                available_columns = ", ".join(existing_links_df.columns)
-                raise ValueError(f"Colonnes requises manquantes dans le fichier de liens: {', '.join(missing_columns)}. Colonnes disponibles: {available_columns}")
+            for col in required_columns:
+                if col not in existing_links_df.columns:
+                    raise ValueError(f"Colonne requise manquante dans le fichier de liens: {col}")
         
         # Charger les données GSC si disponibles
         gsc_data = None
-        if gsc_file:
-            if os.path.exists(gsc_file):
-                logging.info(f"Chargement des données GSC: {gsc_file}")
-                try:
-                    gsc_data = pd.read_excel(gsc_file)
-                    
-                    # Normaliser les noms de colonnes pour le fichier GSC
-                    gsc_column_mapping = {
-                        "Page": "page",
-                        "URL": "page",
-                        "Adresse": "page",
-                        "Landing Page": "page",
-                        "Landing page": "page",
-                        "Query": "query",
-                        "Requête": "query",
-                        "Mot-clé": "query",
-                        "Mot clé": "query",
-                        "Keyword": "query",
-                        "Clicks": "clicks",
-                        "Clics": "clicks",
-                        "Impressions": "impressions",
-                        "Position": "position",
-                        "Pos.": "position",
-                        "Pos": "position",
-                        "CTR": "ctr"
-                    }
-                    
-                    # Renommer les colonnes si nécessaire
-                    for alt_col, std_col in gsc_column_mapping.items():
-                        if alt_col in gsc_data.columns and std_col not in gsc_data.columns:
-                            gsc_data.rename(columns={alt_col: std_col}, inplace=True)
-                            logging.info(f"Colonne '{alt_col}' renommée en '{std_col}' dans le fichier GSC")
-                    
-                    # Vérifier les colonnes requises après normalisation
-                    required_columns = ["page", "query", "clicks", "impressions", "position"]
-                    missing_columns = [col for col in required_columns if col not in gsc_data.columns]
-                    
-                    if missing_columns:
-                        # Afficher les colonnes disponibles pour faciliter le débogage
-                        available_columns = ", ".join(gsc_data.columns)
-                        logging.warning(f"Colonnes manquantes dans le fichier GSC: {', '.join(missing_columns)}. Colonnes disponibles: {available_columns}")
-                        logging.warning("Analyse sans données GSC.")
-                        gsc_data = None
-                        
-                except Exception as e:
-                    logging.error(f"Erreur lors du chargement du fichier GSC: {str(e)}")
-                    logging.warning("Analyse sans données GSC.")
-                    gsc_data = None
-            else:
-                logging.warning(f"Fichier GSC introuvable: {gsc_file}")
-                logging.warning("Analyse sans données GSC.")
+        if gsc_file and os.path.exists(gsc_file):
+            gsc_data = pd.read_excel(gsc_file)
+            
+            # Vérifier les colonnes requises
+            required_columns = ["page", "query", "clicks", "impressions", "position"]
+            for col in required_columns:
+                if col not in gsc_data.columns:
+                    raise ValueError(f"Colonne requise manquante dans le fichier GSC: {col}")
         
         # Traiter les données GSC
         gsc_queries = {}
@@ -393,33 +193,17 @@ class SEOAnalyzer:
     
     def _normalize_url(self, url: str) -> str:
         """Normalise une URL pour les comparaisons"""
-        # Supprimer le protocole
-        url = re.sub(r'^https?://', '', url)
-        # Supprimer les paramètres et fragments
-        url = re.sub(r'[?#].*$', '', url)
-        # Supprimer les slashes de fin
-        url = re.sub(r'/+$', '', url)
+        # Supprimer les paramètres d'URL
+        url = url.split('?')[0].split('#')[0]
+        
+        # Supprimer le slash final s'il existe
+        if url.endswith('/'):
+            url = url[:-1]
+            
         # Convertir en minuscules
         url = url.lower()
-        return url
         
-    def _normalize_file_path(self, file_path: str) -> str:
-        """Normalise un chemin de fichier pour s'assurer qu'il est absolu"""
-        if not file_path:
-            return file_path
-            
-        # Si le chemin est déjà absolu, le retourner tel quel
-        if os.path.isabs(file_path):
-            return file_path
-            
-        # Si le chemin commence par 'app/', s'assurer qu'il est relatif au répertoire racine
-        if file_path.startswith('app/'):
-            # Obtenir le répertoire racine (2 niveaux au-dessus du répertoire du module)
-            root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            return os.path.join(root_dir, file_path)
-            
-        # Sinon, considérer le chemin comme relatif au répertoire courant
-        return os.path.abspath(file_path)
+        return url
     
     def _generate_suggestions(
         self,
@@ -455,38 +239,9 @@ class SEOAnalyzer:
         
         # Créer un ensemble de liens existants pour une recherche plus rapide
         existing_links_set = set()
-        normalized_existing_links_set = set()  # Ensemble avec URLs normalisées
-        bidirectional_links_set = set()  # Ensemble pour vérifier les liens dans les deux sens
         if existing_links_df is not None:
-            # Vérifier les noms de colonnes disponibles
-            if "source" in existing_links_df.columns and "target" in existing_links_df.columns:
-                for _, row in existing_links_df.iterrows():
-                    source = row["source"]
-                    target = row["target"]
-                    existing_links_set.add((source, target))
-                    # Ajouter également une version normalisée pour la comparaison
-                    source_norm = self._normalize_url(source)
-                    target_norm = self._normalize_url(target)
-                    normalized_existing_links_set.add((source_norm, target_norm))
-                    # Ajouter les deux directions pour vérifier les liens bidirectionnels
-                    bidirectional_links_set.add((source_norm, target_norm))
-                    bidirectional_links_set.add((target_norm, source_norm))
-            elif "Source" in existing_links_df.columns and "Destination" in existing_links_df.columns:
-                for _, row in existing_links_df.iterrows():
-                    source = row["Source"]
-                    target = row["Destination"]
-                    existing_links_set.add((source, target))
-                    # Ajouter également une version normalisée pour la comparaison
-                    source_norm = self._normalize_url(source)
-                    target_norm = self._normalize_url(target)
-                    normalized_existing_links_set.add((source_norm, target_norm))
-                    # Ajouter les deux directions pour vérifier les liens bidirectionnels
-                    bidirectional_links_set.add((source_norm, target_norm))
-                    bidirectional_links_set.add((target_norm, source_norm))
-            else:
-                logging.warning("Colonnes de liens introuvables dans le fichier de liens. Colonnes disponibles: " + ", ".join(existing_links_df.columns))
-            
-            logging.info(f"Nombre de liens existants chargés: {len(existing_links_set)}")
+            for _, row in existing_links_df.iterrows():
+                existing_links_set.add((row["source"], row["target"]))
         
         # Calculer les embeddings pour toutes les pages
         logging.info("Calcul des embeddings...")
@@ -560,19 +315,15 @@ class SEOAnalyzer:
                 
                 if target_url in priority_urls_set:
                     # Appliquer un bonus pour favoriser les liens vers les URL prioritaires
-                    # Limiter la similarité maximale à 1.0 (100%)
-                    similarity_score = min(similarity_score + priority_bonus, 1.0)
-                    logging.debug(f"Bonus de similarité appliqué pour l'URL prioritaire: {target_url} (plafonné à 100%)")
+                    similarity_score += priority_bonus
+                    logging.debug(f"Bonus de similarité appliqué pour l'URL prioritaire: {target_url}")
                 
                 # Vérifier si la similarité (avec ou sans bonus) est suffisante
                 if similarity_score < min_similarity:
                     continue
                 
-                # Vérifier si le lien existe déjà (en utilisant les URLs brutes, normalisées, et vérifier les liens bidirectionnels)
-                if (source_url, target_url) in existing_links_set or \
-                   (source_url_normalized, target_url_normalized) in normalized_existing_links_set or \
-                   (source_url_normalized, target_url_normalized) in bidirectional_links_set:
-                    logging.debug(f"Lien existant ignoré: {source_url} -> {target_url}")
+                # Vérifier si le lien existe déjà
+                if (source_url, target_url) in existing_links_set:
                     continue
                 
                 # Vérifier les règles de maillage si elles sont définies
@@ -622,18 +373,8 @@ class SEOAnalyzer:
         # Créer un DataFrame avec les suggestions
         suggestions_df = pd.DataFrame(suggestions)
         
-        # Éliminer les doublons en conservant la suggestion avec la plus haute similarité
+        # Trier par similarité décroissante
         if not suggestions_df.empty:
-            # Identifier les doublons basés sur source_url et target_url
-            logging.info(f"Nombre de suggestions avant déduplication: {len(suggestions_df)}")
-            
-            # Conserver uniquement la suggestion avec la plus haute similarité pour chaque paire source-destination
-            suggestions_df = suggestions_df.sort_values(by="similarity", ascending=False)
-            suggestions_df = suggestions_df.drop_duplicates(subset=["source_url", "target_url"], keep="first")
-            
-            logging.info(f"Nombre de suggestions après déduplication: {len(suggestions_df)}")
-            
-            # Trier par similarité décroissante
             suggestions_df = suggestions_df.sort_values(by="similarity", ascending=False)
         
         return suggestions_df

@@ -16,3 +16,10 @@ aiofiles
 # Nouvelles dépendances pour la visualisation et le PageRank
 networkx>=2.8.0  # Pour le calcul du PageRank et la manipulation de graphes
 matplotlib>=3.5.0  # Pour générer des visualisations statiques si nécessaire
+
+# Dépendances pour le web crawling
+scrapy>=2.8.0  # Framework de crawling robuste
+beautifulsoup4>=4.12.0  # Pour l'extraction de contenu
+requests>=2.28.0  # Pour les requêtes HTTP simples
+asyncio>=3.4.3  # Pour la gestion asynchrone
+tqdm>=4.65.0  # Pour les barres de progression

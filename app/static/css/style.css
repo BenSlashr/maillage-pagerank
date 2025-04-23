@@ -1,0 +1,112 @@
+/* Style personnalisé pour l'application de maillage interne */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.card {
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    font-weight: 500;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+.badge.bg-purple {
+    background-color: #6f42c1;
+}
+
+.priority-badge {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+}
+
+/* Styles pour la page de segmentation */
+.rule-card {
+    margin-bottom: 15px;
+    border-left: 4px solid #007bff;
+}
+
+.rule-card.regex {
+    border-left-color: #6f42c1;
+}
+
+.rule-priority-high {
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+.rule-priority-medium {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.rule-priority-low {
+    background-color: rgba(108, 117, 125, 0.1);
+}
+
+.segment-badge {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+.rule-actions {
+    white-space: nowrap;
+}
+
+/* Styles pour les formulaires */
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+/* Styles pour les alertes */
+.alert {
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+
+/* Styles pour les tableaux */
+.table-responsive {
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+/* Styles pour les modales */
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.modal-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}

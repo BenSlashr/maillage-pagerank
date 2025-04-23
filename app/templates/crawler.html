@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crawler Web - Maillage Interne</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .progress-container {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .crawl-stats {
+            margin-top: 20px;
+            display: none;
+        }
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        .log-info {
+            color: #0d6efd;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .settings-section {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Maillage Interne</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analysis">Analyse</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/rules">Règles</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/crawler">Crawler</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/segment_rules">Segments</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Crawler Web</h1>
+        <p class="lead">
+            Crawlez un site web pour extraire automatiquement son contenu et ses liens internes.
+            Les données extraites seront utilisées pour l'analyse de maillage interne.
+        </p>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Configuration du Crawler</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="crawlerForm">
+                            <div class="mb-3">
+                                <label for="startUrl" class="form-label">URL de départ</label>
+                                <input type="url" class="form-control" id="startUrl" name="start_url" placeholder="https://example.com/" required>
+                                <div class="form-text">L'URL complète de la page où commencer le crawl (incluant https://)</div>
+                            </div>
+
+                            <div class="settings-section">
+                                <h5>Paramètres avancés</h5>
+                                <div class="mb-3">
+                                    <label for="maxPages" class="form-label">Nombre maximum de pages</label>
+                                    <input type="number" class="form-control" id="maxPages" name="max_pages" value="1000" min="1" max="50000">
+                                    <div class="form-text">Limite le nombre de pages à crawler (max. 50 000)</div>
+                                </div>
+                                
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="respectRobots" name="respect_robots" checked>
+                                    <label class="form-check-label" for="respectRobots">Respecter robots.txt</label>
+                                    <div class="form-text">Si coché, le crawler respectera les règles définies dans le fichier robots.txt du site</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="crawlDelay" class="form-label">Délai entre requêtes (secondes)</label>
+                                    <input type="number" class="form-control" id="crawlDelay" name="crawl_delay" value="0.5" min="0.1" max="10" step="0.1">
+                                    <div class="form-text">Temps d'attente entre chaque requête pour éviter de surcharger le serveur</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="excludePatterns" class="form-label">Patterns d'URL à exclure</label>
+                                    <div class="d-flex">
+                                        <textarea class="form-control" id="excludePatterns" name="exclude_patterns" rows="4" placeholder="/blog/page/\n/tag/\nregex:/produit/[0-9]+"></textarea>
+                                        <button type="button" class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#testPatternModal" title="Tester un pattern">
+                                            <i class="bi bi-check2-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">
+                                        Un pattern par ligne. Les URLs contenant ces patterns seront ignorées.<br>
+                                        Préfixez avec <code>regex:</code> pour utiliser des expressions régulières.<br>
+                                        Exemples: <code>/blog/page/</code>, <code>/tag/</code>, <code>regex:/produit/[0-9]+</code>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" id="startCrawlBtn">Démarrer le crawl</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <h4>Progression du crawl</h4>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="crawlProgress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">0%</div>
+                    </div>
+                    <p class="mt-2" id="progressText">Initialisation...</p>
+                    
+                    <div class="d-flex justify-content-between mt-3">
+                        <button class="btn btn-danger" id="stopCrawlBtn">Arrêter le crawl</button>
+                        <div>
+                            <div class="btn-group" id="downloadBtns" style="display: none;">
+                                <button class="btn btn-outline-primary" id="downloadContentBtn" title="Télécharger le fichier de contenu">
+                                    <i class="bi bi-file-earmark-spreadsheet"></i> Contenu
+                                </button>
+                                <button class="btn btn-outline-primary" id="downloadLinksBtn" title="Télécharger le fichier de liens">
+                                    <i class="bi bi-link-45deg"></i> Liens
+                                </button>
+                            </div>
+                            <button class="btn btn-success ms-2" id="analyzeBtn" style="display: none;">Analyser les résultats</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="crawl-stats" id="crawlStats">
+                    <h4>Statistiques du crawl</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Pages crawlées
+                                    <span class="badge bg-primary rounded-pill" id="statCrawledPages">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Pages réussies
+                                    <span class="badge bg-success rounded-pill" id="statSuccessfulPages">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Pages échouées
+                                    <span class="badge bg-danger rounded-pill" id="statFailedPages">0</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Liens totaux
+                                    <span class="badge bg-primary rounded-pill" id="statTotalLinks">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Liens internes
+                                    <span class="badge bg-success rounded-pill" id="statInternalLinks">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Durée du crawl
+                                    <span class="badge bg-info rounded-pill" id="statDuration">0s</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry log-info">Prêt à démarrer le crawl...</div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Aide</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Comment ça marche ?</h6>
+                        <ol>
+                            <li>Entrez l'URL complète du site à crawler</li>
+                            <li>Ajustez les paramètres avancés si nécessaire</li>
+                            <li>Cliquez sur "Démarrer le crawl"</li>
+                            <li>Attendez que le crawl se termine</li>
+                            <li>Analysez les résultats avec l'outil de maillage</li>
+                        </ol>
+
+                        <h6>Conseils</h6>
+                        <ul>
+                            <li>Commencez par un petit nombre de pages pour tester</li>
+                            <li>Respectez les règles du robots.txt pour être éthique</li>
+                            <li>Utilisez un délai raisonnable pour ne pas surcharger le serveur</li>
+                            <li>Pour les grands sites, prévoyez suffisamment de temps</li>
+                        </ul>
+
+                        <div class="alert alert-warning">
+                            <strong>Note :</strong> Le crawling d'un site peut prendre du temps, surtout pour les sites volumineux. Soyez patient et respectueux des ressources du serveur cible.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const crawlerForm = document.getElementById('crawlerForm');
+            const startCrawlBtn = document.getElementById('startCrawlBtn');
+            const stopCrawlBtn = document.getElementById('stopCrawlBtn');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const crawlProgress = document.getElementById('crawlProgress');
+            const progressText = document.getElementById('progressText');
+            const crawlStats = document.getElementById('crawlStats');
+            const logContainer = document.getElementById('logContainer');
+            
+            // Variable pour stocker l'ID du job en cours
+            let currentJobId = null;
+            
+            // Statistiques
+            const statCrawledPages = document.getElementById('statCrawledPages');
+            const statSuccessfulPages = document.getElementById('statSuccessfulPages');
+            const statFailedPages = document.getElementById('statFailedPages');
+            const statTotalLinks = document.getElementById('statTotalLinks');
+            const statInternalLinks = document.getElementById('statInternalLinks');
+            const statDuration = document.getElementById('statDuration');
+            
+            let jobId = null;
+            let websocket = null;
+            
+            // Fonction pour ajouter un message au log
+            function addLog(message, type = 'info') {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                logEntry.textContent = message;
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            // Fonction pour mettre à jour la progression
+            function updateProgress(current, total) {
+                const percent = Math.round((current / total) * 100);
+                crawlProgress.style.width = `${percent}%`;
+                crawlProgress.textContent = `${percent}%`;
+                crawlProgress.setAttribute('aria-valuenow', percent);
+            }
+            
+            // Fonction pour mettre à jour les statistiques
+            function updateStats(stats) {
+                statCrawledPages.textContent = stats.total_pages || 0;
+                statSuccessfulPages.textContent = stats.successful_pages || 0;
+                statFailedPages.textContent = stats.failed_pages || 0;
+                statTotalLinks.textContent = stats.total_links || 0;
+                statInternalLinks.textContent = stats.internal_links || 0;
+                
+                if (stats.duration_seconds) {
+                    const duration = stats.duration_seconds;
+                    if (duration < 60) {
+                        statDuration.textContent = `${duration.toFixed(1)}s`;
+                    } else if (duration < 3600) {
+                        statDuration.textContent = `${Math.floor(duration / 60)}m ${Math.round(duration % 60)}s`;
+                    } else {
+                        statDuration.textContent = `${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`;
+                    }
+                }
+                
+                crawlStats.style.display = 'block';
+            }
+            
+            // Fonction pour connecter au WebSocket
+            function connectWebSocket(jobId) {
+                websocket = new WebSocket(`ws://${window.location.host}/ws/${jobId}`);
+                
+                websocket.onopen = function(event) {
+                    addLog(`Connexion WebSocket établie pour la tâche ${jobId}`);
+                };
+                
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'progress') {
+                        progressText.textContent = data.description;
+                        updateProgress(data.current, data.total);
+                    } else if (data.type === 'log') {
+                        addLog(data.message, data.level || 'info');
+                    } else if (data.type === 'stats') {
+                        updateStats(data.stats);
+                    } else if (data.type === 'complete') {
+                        addLog('Crawl terminé !', 'info');
+                        
+                        // Afficher les boutons de téléchargement
+                        const downloadBtns = document.getElementById('downloadBtns');
+                        downloadBtns.style.display = 'inline-flex';
+                        
+                        // Vérifier que l'ID du job est défini
+                        if (currentJobId) {
+                            // Configurer les boutons de téléchargement avec l'ID du job
+                            document.getElementById('downloadContentBtn').onclick = function() {
+                                window.location.href = `/api/download_content_file/${currentJobId}`;
+                            };
+                            document.getElementById('downloadLinksBtn').onclick = function() {
+                                window.location.href = `/api/download_links_file/${currentJobId}`;
+                            };
+                            addLog(`Fichiers prêts à être téléchargés (job ID: ${currentJobId})`, 'info');
+                        } else {
+                            addLog('Impossible de configurer les boutons de téléchargement : ID de job manquant', 'warning');
+                        }
+                        
+                        // Configurer le bouton d'analyse
+                        analyzeBtn.style.display = 'block';
+                        analyzeBtn.dataset.contentFile = data.content_file;
+                        analyzeBtn.dataset.linksFile = data.links_file;
+                        stopCrawlBtn.style.display = 'none';
+                    } else if (data.type === 'error') {
+                        addLog(`Erreur: ${data.message}`, 'error');
+                        stopCrawlBtn.style.display = 'none';
+                    }
+                };
+                
+                websocket.onclose = function(event) {
+                    addLog('Connexion WebSocket fermée', 'warning');
+                };
+                
+                websocket.onerror = function(event) {
+                    addLog('Erreur WebSocket', 'error');
+                };
+            }
+            
+            // Gestionnaire de soumission du formulaire
+            document.getElementById('crawlerForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                startCrawl();
+            });
+            
+            // Gestionnaire de soumission du formulaire de test de pattern
+            document.getElementById('testPatternForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                testExcludePattern();
+            });
+            
+            // Fonction pour tester un pattern d'exclusion
+            async function testExcludePattern() {
+                const testUrl = document.getElementById('testUrl').value;
+                const pattern = document.getElementById('testPattern').value;
+                const resultDiv = document.getElementById('testResult');
+                const alertDiv = resultDiv.querySelector('.alert');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('test_url', testUrl);
+                    formData.append('pattern', pattern);
+                    
+                    const response = await fetch('/api/test_exclude_pattern', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    resultDiv.classList.remove('d-none');
+                    alertDiv.classList.remove('alert-success', 'alert-danger', 'alert-warning');
+                    
+                    if (result.error) {
+                        alertDiv.classList.add('alert-warning');
+                        alertDiv.textContent = result.message;
+                    } else if (result.match) {
+                        alertDiv.classList.add('alert-success');
+                        alertDiv.textContent = `Match! ${result.message}`;
+                    } else {
+                        alertDiv.classList.add('alert-danger');
+                        alertDiv.textContent = `Pas de match. ${result.message}`;
+                    }
+                } catch (error) {
+                    resultDiv.classList.remove('d-none');
+                    alertDiv.classList.remove('alert-success', 'alert-danger');
+                    alertDiv.classList.add('alert-warning');
+                    alertDiv.textContent = `Erreur: ${error.message}`;
+                }
+            }
+            
+            // Fonction pour démarrer le crawl
+            function startCrawl() {
+                const formData = new FormData(crawlerForm);
+                startCrawlBtn.disabled = true;
+                addLog('Démarrage du crawl...', 'info');
+                
+                // Afficher la barre de progression
+                progressContainer.style.display = 'block';
+                updateProgress(0, 100);
+                
+                // Envoyer la requête pour démarrer le crawl
+                fetch('/api/start_crawl', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.job_id) {
+                        // Stocker l'ID du job en cours
+                        currentJobId = data.job_id;
+                        addLog(`Tâche de crawl créée avec l'ID: ${data.job_id}`, 'info');
+                        connectWebSocket(data.job_id);
+                    } else {
+                        addLog(`Erreur: ${data.detail || 'Erreur inconnue'}`, 'error');
+                        startCrawlBtn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    addLog(`Erreur: ${error.message}`, 'error');
+                    startCrawlBtn.disabled = false;
+                });
+            }
+            
+            // Gestionnaire pour arrêter le crawl
+            stopCrawlBtn.addEventListener('click', function() {
+                if (!jobId) return;
+                
+                fetch(`/api/stop_crawl/${jobId}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog('Demande d\'arrêt du crawl envoyée', 'warning');
+                    } else {
+                        addLog(`Erreur: ${data.error || 'Erreur inconnue'}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    addLog(`Erreur: ${error.message}`, 'error');
+                });
+            });
+            
+            // Gestionnaire pour analyser les résultats
+            analyzeBtn.addEventListener('click', function() {
+                const contentFile = analyzeBtn.getAttribute('data-content-file');
+                const linksFile = analyzeBtn.getAttribute('data-links-file');
+                
+                if (contentFile) {
+                    // Rediriger vers la page d'analyse avec les fichiers pré-remplis
+                    // Utiliser les chemins relatifs pour les fichiers (sans le préfixe app/uploads/)
+                    const contentPath = `content/${contentFile}`;
+                    const linksPath = linksFile ? `links/${linksFile}` : '';
+                    window.location.href = `/analysis?content=${encodeURIComponent(contentPath)}&links=${encodeURIComponent(linksPath)}`;
+                }
+            });
+        });
+    </script>
+    
+    <!-- Modal pour tester les patterns d'exclusion -->
+    <div class="modal fade" id="testPatternModal" tabindex="-1" aria-labelledby="testPatternModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="testPatternModalLabel">Tester un pattern d'exclusion</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="testPatternForm">
+                        <div class="mb-3">
+                            <label for="testUrl" class="form-label">URL à tester</label>
+                            <input type="text" class="form-control" id="testUrl" placeholder="https://example.com/blog/page/2" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="testPattern" class="form-label">Pattern d'exclusion</label>
+                            <input type="text" class="form-control" id="testPattern" placeholder="/blog/page/ ou regex:/blog/page/[0-9]+" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Tester</button>
+                    </form>
+                    <div id="testResult" class="mt-3 d-none">
+                        <div class="alert" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</body>
+</html>

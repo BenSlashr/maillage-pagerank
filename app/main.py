@@ -4,22 +4,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
-from typing import List, Dict, Optional, Any
+from pydantic import BaseModel
+from datetime import datetime
+from typing import List, Dict, Optional, Any, Union
 import pandas as pd
 import numpy as np
 import os
 import json
 import logging
 import uuid
-import shutil
 import asyncio
-from datetime import datetime
-from pydantic import BaseModel
+import time
+import shutil
+import tempfile
 import sys
+import re
+import traceback
 import aiofiles
+from typing import Dict, List, Optional, Any, Callable, Union, Set
 from fastapi.concurrency import run_in_threadpool
 import openpyxl
 from fastapi.encoders import jsonable_encoder
+from urllib.parse import urlparse
 
 # Classe d'encodeur JSON personnalisée pour gérer les valeurs flottantes hors limites
 class CustomJSONEncoder(json.JSONEncoder):
@@ -39,7 +45,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.pagerank import calculate_pagerank, calculate_pagerank_with_suggestions, prepare_graph_data, calculate_weighted_pagerank, calculate_weighted_pagerank_with_suggestions
 from models.priority_urls import PriorityURLManager
 from models.pagerank_cache import PageRankCache
+from models.crawler import WebCrawler
+from models.segment_rules import SegmentRuleManager
 from models.seo_analyzer import SEOAnalyzer
+from models.filter_self_links import filter_self_links
 
 # Initialisation du cache PageRank (5 minutes par défaut)
 pagerank_cache = PageRankCache(cache_duration_seconds=300)
@@ -191,6 +200,16 @@ async def analysis_page(request: Request):
 @app.get("/rules", response_class=HTMLResponse)
 async def rules_page(request: Request):
     return templates.TemplateResponse("rules_editor.html", {"request": request})
+
+@app.get("/crawler")
+async def get_crawler_page(request: Request):
+    """Affiche la page du crawler"""
+    return templates.TemplateResponse("crawler.html", {"request": request})
+
+@app.get("/segment_rules")
+async def get_segment_rules_page(request: Request):
+    """Affiche la page de gestion des règles de segmentation"""
+    return templates.TemplateResponse("segment_rules.html", {"request": request})
 
 @app.get("/results/{job_id}", response_class=HTMLResponse)
 async def read_results(request: Request, job_id: str):
@@ -449,8 +468,6 @@ async def save_rules_no_validation(request: Request):
                     value = rules_data["rules"][source][target]
                     if isinstance(value, str):
                         numeric_rules[source][target] = int(float(value))
-                    else:
-                        numeric_rules[source][target] = int(float(value))
                 except (ValueError, TypeError):
                     numeric_rules[source][target] = 0
         
@@ -479,6 +496,94 @@ async def save_rules_no_validation(request: Request):
         logging.error(f"Erreur lors de la sauvegarde des règles: {str(e)}")
         return {"success": False, "message": str(e)}
 
+@app.post("/api/save_content_rules")
+async def save_content_rules(rules: str = Form(...)):
+    """Sauvegarde les règles de segmentation pour l'analyse de contenu"""
+    try:
+        # Convertir les règles en objet JSON
+        rules_data = json.loads(rules)
+        
+        # Convertir les règles en format numérique
+        numeric_rules = []
+        for rule in rules_data:
+            numeric_rule = {
+                "min_words": int(rule["min_words"]),
+                "max_words": int(rule["max_words"]),
+                "min_score": float(rule["min_score"]),
+                "max_suggestions": int(rule["max_suggestions"]),
+                "segment": rule["segment"]
+            }
+            numeric_rules.append(numeric_rule)
+        
+        # Sauvegarder les règles dans un fichier JSON
+        with open("app/segment_rules.json", "w", encoding="utf-8") as f:
+            json.dump(numeric_rules, f, ensure_ascii=False, indent=2)
+        
+        return {
+            "success": True,
+            "message": "Règles sauvegardées avec succès",
+            "rules": numeric_rules
+        }
+    except Exception as e:
+        logging.error(f"Erreur lors de la sauvegarde des règles: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/segment_rules")
+async def get_segment_rules():
+    """Récupère les règles de segmentation"""
+    try:
+        # Initialiser le gestionnaire de règles
+        rule_manager = SegmentRuleManager("app/data/segment_rules.json")
+        
+        # Exporter les règles
+        rules_data = rule_manager.export_rules()
+        
+        return {
+            "success": True,
+            "rules": rules_data["rules"],
+            "default_segment": rules_data["default_segment"]
+        }
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération des règles: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/segment_rules")
+async def update_segment_rules(data: Dict):
+    """Met à jour les règles de segmentation"""
+    try:
+        # Initialiser le gestionnaire de règles
+        rule_manager = SegmentRuleManager("app/data/segment_rules.json")
+        
+        # Importer les règles
+        rule_manager.import_rules(data)
+        
+        # Sauvegarder les règles
+        rule_manager.save_rules()
+        
+        return {
+            "success": True,
+            "message": "Règles de segmentation mises à jour avec succès"
+        }
+    except Exception as e:
+        logging.error(f"Erreur lors de la mise à jour des règles: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+def normalize_file_path(file_path: str) -> str:
+    """Normalise un chemin de fichier pour s'assurer qu'il est correct"""
+    if not file_path:
+        return file_path
+        
+    # Si le chemin est déjà absolu ou commence par app/uploads, le retourner tel quel
+    if os.path.isabs(file_path) or file_path.startswith('app/uploads/'):
+        return file_path
+        
+    # Si le chemin commence par content/ ou links/ ou gsc/, ajouter app/uploads/
+    if file_path.startswith('content/') or file_path.startswith('links/') or file_path.startswith('gsc/'):
+        return os.path.join('app/uploads', file_path)
+        
+    # Sinon, considérer le chemin comme relatif au répertoire uploads
+    return os.path.join('app/uploads', file_path)
+
 @app.post("/api/analyze")
 async def analyze_content(
     background_tasks: BackgroundTasks,
@@ -489,14 +594,31 @@ async def analyze_content(
 ):
     """Lance l'analyse du contenu et génère des suggestions de maillage interne"""
     try:
+        # Normaliser les chemins de fichiers
+        content_file = normalize_file_path(content_file)
+        if links_file:
+            links_file = normalize_file_path(links_file)
+        if gsc_file:
+            gsc_file = normalize_file_path(gsc_file)
+            
+        # Journaliser les chemins de fichiers pour le débogage
+        logging.info(f"Fichier de contenu normalisé: {content_file}")
+        if links_file:
+            logging.info(f"Fichier de liens normalisé: {links_file}")
+        if gsc_file:
+            logging.info(f"Fichier GSC normalisé: {gsc_file}")
+        
         # Vérifier que les fichiers existent
         if not os.path.exists(content_file):
+            logging.error(f"Fichier de contenu non trouvé: {content_file}")
             raise HTTPException(status_code=404, detail="Fichier de contenu non trouvé")
 
         if links_file and not os.path.exists(links_file):
+            logging.error(f"Fichier de liens non trouvé: {links_file}")
             raise HTTPException(status_code=404, detail="Fichier de liens non trouvé")
 
         if gsc_file and not os.path.exists(gsc_file):
+            logging.error(f"Fichier GSC non trouvé: {gsc_file}")
             raise HTTPException(status_code=404, detail="Fichier GSC non trouvé")
 
         # Charger la configuration
@@ -532,7 +654,22 @@ async def analyze_content(
 
         return {"job_id": job_id}
     except Exception as e:
+        # Journalisation détaillée de l'erreur
         logging.error(f"Erreur lors du lancement de l'analyse: {str(e)}")
+        logging.error(f"Traceback complet: {traceback.format_exc()}")
+        
+        # Journalisation des états des fichiers
+        logging.error(f"Fichier de contenu: {content_file}, existe: {os.path.exists(content_file) if content_file else False}")
+        logging.error(f"Fichier de liens: {links_file}, existe: {os.path.exists(links_file) if links_file else False}")
+        logging.error(f"Fichier GSC: {gsc_file}, existe: {os.path.exists(gsc_file) if gsc_file else False}")
+        
+        # Journalisation de la configuration
+        try:
+            logging.error(f"Configuration: {config}")
+            logging.error(f"Configuration parsée: {json.loads(config)}")
+        except Exception as config_err:
+            logging.error(f"Erreur lors de l'analyse de la configuration: {str(config_err)}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/job/{job_id}")
@@ -1224,6 +1361,250 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, job_id)
 
+# Endpoints pour le crawler web
+@app.post("/api/start_crawl")
+async def start_crawl(
+    background_tasks: BackgroundTasks,
+    start_url: str = Form(...),
+    max_pages: int = Form(10000),
+    respect_robots: bool = Form(True),
+    crawl_delay: float = Form(0.5),
+    exclude_patterns: str = Form("")
+):
+    """
+    Démarre une tâche de crawling d'un site web.
+    
+    Args:
+        start_url: URL de départ pour le crawl
+        max_pages: Nombre maximum de pages à crawler
+        respect_robots: Si True, respecte les règles du robots.txt
+        crawl_delay: Délai entre les requêtes en secondes
+    
+    Returns:
+        ID de la tâche de crawl
+    """
+    try:
+        # Valider l'URL
+        parsed_url = urlparse(start_url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise ValueError("URL invalide. Assurez-vous d'inclure le protocole (http:// ou https://)")
+        
+        # Générer un ID de tâche unique
+        job_id = str(uuid.uuid4())
+        
+        # Initialiser la tâche dans le dictionnaire des tâches
+        jobs[job_id] = {
+            "id": job_id,
+            "type": "crawl",
+            "status": "initializing",
+            "start_time": datetime.now().isoformat(),
+            "progress": {
+                "current": 0,
+                "total": max_pages,
+                "description": "Initialisation du crawl..."
+            },
+            "params": {
+                "start_url": start_url,
+                "max_pages": max_pages,
+                "respect_robots": respect_robots,
+                "crawl_delay": crawl_delay,
+                "segment_rules_file": "app/data/segment_rules.json",
+                "exclude_patterns": [pattern.strip() for pattern in exclude_patterns.split("\n") if pattern.strip()]
+            },
+            "results": {
+                "content_file": None,
+                "links_file": None
+            },
+            "stop_requested": False
+        }
+        
+        logging.info(f"Nouvelle tâche de crawl créée: {job_id} pour {start_url}")
+        
+        # Lancer la tâche de crawl en arrière-plan
+        background_tasks.add_task(run_crawl, job_id)
+        
+        return {"job_id": job_id, "status": "initializing"}
+    
+    except ValueError as e:
+        logging.error(f"Erreur de validation: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.error(f"Erreur lors du démarrage du crawl: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+@app.get("/api/crawl_status/{job_id}")
+async def check_crawl_status(job_id: str):
+    """
+    Vérifie le statut d'une tâche de crawl.
+    
+    Args:
+        job_id: ID de la tâche de crawl
+    
+    Returns:
+        Statut et progression de la tâche
+    """
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail=f"Tâche {job_id} non trouvée")
+    
+    job = jobs[job_id]
+    
+    if job["type"] != "crawl":
+        raise HTTPException(status_code=400, detail=f"La tâche {job_id} n'est pas une tâche de crawl")
+    
+    return {
+        "id": job_id,
+        "status": job["status"],
+        "progress": job["progress"],
+        "results": job["results"] if job["status"] == "completed" else None
+    }
+
+@app.get("/api/download_content_file/{job_id}")
+async def download_content_file(job_id: str):
+    """
+    Télécharge le fichier de contenu généré par le crawler.
+    
+    Args:
+        job_id: ID du job de crawl
+        
+    Returns:
+        Fichier Excel de contenu
+    """
+    try:
+        if job_id not in jobs:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} non trouvé")
+            
+        job = jobs[job_id]
+        if job["type"] != "crawl" or job["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Ce job n'est pas un crawl terminé")
+            
+        content_file_path = job["results"].get("content_file")
+        if not content_file_path or not os.path.exists(content_file_path):
+            raise HTTPException(status_code=404, detail="Fichier de contenu non trouvé")
+            
+        # Extraire le nom du fichier à partir du chemin
+        filename = os.path.basename(content_file_path)
+        
+        # Renvoyer le fichier avec un nom personnalisé
+        domain = urlparse(job["params"]["start_url"]).netloc
+        download_filename = f"contenu_{domain}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        return FileResponse(
+            path=content_file_path,
+            filename=download_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        logging.error(f"Erreur lors du téléchargement du fichier de contenu: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+@app.get("/api/download_links_file/{job_id}")
+async def download_links_file(job_id: str):
+    """
+    Télécharge le fichier de liens généré par le crawler.
+    
+    Args:
+        job_id: ID du job de crawl
+        
+    Returns:
+        Fichier Excel de liens
+    """
+    try:
+        if job_id not in jobs:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} non trouvé")
+            
+        job = jobs[job_id]
+        if job["type"] != "crawl" or job["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Ce job n'est pas un crawl terminé")
+            
+        links_file_path = job["results"].get("links_file")
+        if not links_file_path or not os.path.exists(links_file_path):
+            raise HTTPException(status_code=404, detail="Fichier de liens non trouvé")
+            
+        # Extraire le nom du fichier à partir du chemin
+        filename = os.path.basename(links_file_path)
+        
+        # Renvoyer le fichier avec un nom personnalisé
+        domain = urlparse(job["params"]["start_url"]).netloc
+        download_filename = f"liens_{domain}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        return FileResponse(
+            path=links_file_path,
+            filename=download_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        logging.error(f"Erreur lors du téléchargement du fichier de liens: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur serveur: {str(e)}")
+
+@app.post("/api/test_exclude_pattern")
+async def test_exclude_pattern(test_url: str = Form(...), pattern: str = Form(...)):
+    """
+    Teste si une URL correspond à un pattern d'exclusion.
+    
+    Args:
+        test_url: URL à tester
+        pattern: Pattern d'exclusion à tester
+        
+    Returns:
+        Résultat du test (match ou non)
+    """
+    try:
+        # Vérifier si le pattern est une regex
+        is_regex = pattern.startswith("regex:")
+        
+        if is_regex:
+            regex_pattern = pattern[6:]
+            try:
+                match = bool(re.search(regex_pattern, test_url))
+                return {
+                    "match": match,
+                    "message": f"L'URL {'correspond' if match else 'ne correspond pas'} au pattern regex"
+                }
+            except re.error as e:
+                return {
+                    "match": False,
+                    "error": True,
+                    "message": f"Expression régulière invalide: {str(e)}"
+                }
+        else:
+            # Test simple de présence du pattern dans l'URL
+            match = pattern in test_url
+            return {
+                "match": match,
+                "message": f"L'URL {'contient' if match else 'ne contient pas'} le pattern"
+            }
+    except Exception as e:
+        logging.error(f"Erreur lors du test de pattern: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
+
+@app.post("/api/stop_crawl/{job_id}")
+async def stop_crawl(job_id: str):
+    """
+    Arrête une tâche de crawl en cours.
+    
+    Args:
+        job_id: ID de la tâche de crawl
+    
+    Returns:
+        Confirmation de l'arrêt
+    """
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail=f"Tâche {job_id} non trouvée")
+    
+    job = jobs[job_id]
+    
+    if job["type"] != "crawl":
+        raise HTTPException(status_code=400, detail=f"La tâche {job_id} n'est pas une tâche de crawl")
+    
+    if job["status"] in ["completed", "failed"]:
+        return {"success": False, "error": f"La tâche {job_id} est déjà terminée"}
+    
+    # Marquer la tâche comme devant être arrêtée
+    job["stop_requested"] = True
+    logging.info(f"Demande d'arrêt pour la tâche de crawl {job_id}")
+    
+    return {"success": True, "message": f"Demande d'arrêt envoyée pour la tâche {job_id}"}
+
 # Fonction pour exécuter l'analyse en arrière-plan
 async def run_analysis(job_id: str):
     """Exécute l'analyse SEO en arrière-plan"""
@@ -1242,15 +1623,38 @@ async def run_analysis(job_id: str):
     gsc_file = job.get("gsc_file")
     rules_file = job.get("rules_file")
     config = job.get("config", {})
+    
+    # Normaliser les chemins de fichiers
+    content_file = normalize_file_path(content_file)
+    if links_file:
+        links_file = normalize_file_path(links_file)
+    if gsc_file:
+        gsc_file = normalize_file_path(gsc_file)
+    if rules_file:
+        rules_file = normalize_file_path(rules_file)
+        
+    # Mettre à jour les chemins normalisés dans le job
+    job["content_file"] = content_file
+    job["links_file"] = links_file
+    job["gsc_file"] = gsc_file
+    job["rules_file"] = rules_file
 
     # Log pour indiquer quels fichiers optionnels sont utilisés
-    logging.info(f"[Job {job_id}] Fichier de contenu: {os.path.basename(content_file) if content_file else 'Non fourni'}")
-    logging.info(f"[Job {job_id}] Fichier de liens existants: {os.path.basename(links_file) if links_file else 'Non fourni - Analyse sans liens préexistants.'}")
-    logging.info(f"[Job {job_id}] Fichier GSC: {os.path.basename(gsc_file) if gsc_file else 'Non fourni - Analyse sans données GSC.'}")
-    logging.info(f"[Job {job_id}] Fichier de règles: {os.path.basename(rules_file) if rules_file else 'Non fourni - Utilisation des règles par défaut.'}")
+    logging.info(f"[Job {job_id}] Fichier de contenu: {content_file} (existe: {os.path.exists(content_file) if content_file else False})")
+    logging.info(f"[Job {job_id}] Fichier de liens existants: {links_file} (existe: {os.path.exists(links_file) if links_file else False})")
+    logging.info(f"[Job {job_id}] Fichier GSC: {gsc_file} (existe: {os.path.exists(gsc_file) if gsc_file else False})")
+    logging.info(f"[Job {job_id}] Fichier de règles: {rules_file} (existe: {os.path.exists(rules_file) if rules_file else False})")
     logging.info(f"[Job {job_id}] Configuration utilisée: {config}")
 
     try:
+        # Journalisation détaillée pour le débogage
+        logging.info(f"[Job {job_id}] Début de l'analyse avec les paramètres suivants:")
+        logging.info(f"[Job {job_id}] - content_file: {content_file}")
+        logging.info(f"[Job {job_id}] - links_file: {links_file}")
+        logging.info(f"[Job {job_id}] - gsc_file: {gsc_file}")
+        logging.info(f"[Job {job_id}] - rules_file: {rules_file}")
+        logging.info(f"[Job {job_id}] - config: {config}")
+        
         # Initialiser l'analyseur SEO s'il n'existe pas encore
         global seo_analyzer
         if seo_analyzer is None:
@@ -1327,6 +1731,24 @@ async def run_analysis(job_id: str):
             priority_urls_strict=priority_urls_strict
         )
         logging.info(f"[Job {job_id}] Analyse terminée par seo_analyzer.analyze. Fichier résultat: {result_file}")
+        
+        # Filtrer les auto-liens dans le fichier de résultats
+        try:
+            logging.info(f"[Job {job_id}] Filtrage des auto-liens dans le fichier de résultats...")
+            # Charger le fichier Excel
+            suggestions_df = pd.read_excel(result_file, sheet_name="Suggestions")
+            
+            # Appliquer le filtre pour supprimer les auto-liens
+            filtered_df = filter_self_links(suggestions_df)
+            
+            # Sauvegarder le fichier filtré
+            with pd.ExcelWriter(result_file, engine='openpyxl') as writer:
+                filtered_df.to_excel(writer, sheet_name='Suggestions', index=False)
+            
+            logging.info(f"[Job {job_id}] Filtrage des auto-liens terminé. {len(suggestions_df) - len(filtered_df)} auto-liens supprimés.")
+        except Exception as filter_err:
+            logging.error(f"[Job {job_id}] Erreur lors du filtrage des auto-liens: {str(filter_err)}", exc_info=True)
+            # Ne pas interrompre le processus en cas d'erreur lors du filtrage
 
         # Mettre à jour le statut de la tâche vers "completed"
         job["status"] = "completed"
@@ -1339,7 +1761,25 @@ async def run_analysis(job_id: str):
         await manager.send_job_update(job_id, job)
 
     except Exception as e:
+        # Journalisation détaillée de l'erreur
         logging.error(f"[Job {job_id}] Erreur lors de l'analyse: {str(e)}", exc_info=True)
+        logging.error(f"[Job {job_id}] Traceback complet: {traceback.format_exc()}")
+        
+        # Journalisation des états des fichiers
+        if content_file and os.path.exists(content_file):
+            logging.error(f"[Job {job_id}] Fichier de contenu existe: {content_file}, taille: {os.path.getsize(content_file)} octets")
+        else:
+            logging.error(f"[Job {job_id}] Fichier de contenu n'existe pas ou est invalide: {content_file}")
+            
+        if links_file and os.path.exists(links_file):
+            logging.error(f"[Job {job_id}] Fichier de liens existe: {links_file}, taille: {os.path.getsize(links_file)} octets")
+        else:
+            logging.error(f"[Job {job_id}] Fichier de liens n'existe pas ou est invalide: {links_file}")
+            
+        if gsc_file and os.path.exists(gsc_file):
+            logging.error(f"[Job {job_id}] Fichier GSC existe: {gsc_file}, taille: {os.path.getsize(gsc_file)} octets")
+        else:
+            logging.error(f"[Job {job_id}] Fichier GSC n'existe pas ou est invalide: {gsc_file}")
 
         # Mettre à jour le statut de la tâche en cas d'erreur
         job["status"] = "failed"
@@ -1466,6 +1906,134 @@ def validate_excel_file(file_path: str, required_columns: List[str]) -> dict:
             except Exception as close_err:
                 logging.warning(f"Erreur lors de la fermeture du classeur openpyxl pour {file_path}: {close_err}")
 
+
+# Fonction pour exécuter le crawling en arrière-plan
+async def run_crawl(job_id: str):
+    """Exécute le crawling d'un site web en arrière-plan"""
+    job = jobs[job_id]
+    
+    # Mise à jour initiale du statut et notification
+    job["status"] = "running"
+    await manager.send_job_update(job_id, {
+        "type": "progress",
+        "description": "Démarrage du crawl...",
+        "current": 0,
+        "total": job["params"]["max_pages"]
+    })
+    
+    try:
+        # Récupération des paramètres du job
+        start_url = job["params"]["start_url"]
+        max_pages = job["params"]["max_pages"]
+        respect_robots = job["params"]["respect_robots"]
+        crawl_delay = job["params"]["crawl_delay"]
+        
+        # Création d'une fonction de callback pour suivre la progression
+        async def progress_callback(description, current, total):
+            job["progress"] = {
+                "description": description,
+                "current": current,
+                "total": total
+            }
+            # Vérifier si l'arrêt a été demandé
+            if job["stop_requested"]:
+                raise asyncio.CancelledError("Crawl arrêté par l'utilisateur")
+            # Envoyer la mise à jour aux clients WebSocket
+            await manager.send_job_update(job_id, {
+                "type": "progress",
+                "description": description,
+                "current": current,
+                "total": total
+            })
+        
+        # Initialisation du crawler
+        segment_rules_file = job["params"].get("segment_rules_file", "app/data/segment_rules.json")
+        exclude_patterns = job["params"].get("exclude_patterns", [])
+        
+        # Journaliser les patterns d'exclusion
+        if exclude_patterns:
+            logging.info(f"Patterns d'URL exclus: {exclude_patterns}")
+            await manager.send_job_update(job_id, {
+                "type": "log",
+                "message": f"Patterns d'URL exclus: {', '.join(exclude_patterns)}",
+                "level": "info"
+            })
+        
+        crawler = WebCrawler(
+            start_url=start_url,
+            max_pages=max_pages,
+            respect_robots=respect_robots,
+            crawl_delay=crawl_delay,
+            segment_rules_file=segment_rules_file,
+            exclude_patterns=exclude_patterns,
+            progress_callback=progress_callback
+        )
+        
+        # Envoi d'un message de log au client
+        await manager.send_job_update(job_id, {
+            "type": "log",
+            "message": f"Démarrage du crawl pour {start_url} (max {max_pages} pages)",
+            "level": "info"
+        })
+        
+        # Exécution du crawl
+        content_file_path, links_file_path = await crawler.crawl()
+        
+        # Mise à jour des résultats du job
+        job["results"] = {
+            "content_file": content_file_path,
+            "links_file": links_file_path
+        }
+        
+        # Récupération des statistiques du crawl
+        stats = crawler.get_stats()
+        
+        # Envoi des statistiques au client
+        await manager.send_job_update(job_id, {
+            "type": "stats",
+            "stats": stats
+        })
+        
+        # Mise à jour du statut du job
+        job["status"] = "completed"
+        job["end_time"] = datetime.now().isoformat()
+        
+        # Notification de fin aux clients WebSocket
+        await manager.send_job_update(job_id, {
+            "type": "complete",
+            "content_file": os.path.basename(content_file_path),
+            "links_file": os.path.basename(links_file_path)
+        })
+        
+        logging.info(f"Crawl terminé pour la tâche {job_id}")
+        logging.info(f"Fichiers générés: {content_file_path}, {links_file_path}")
+        
+    except asyncio.CancelledError as e:
+        # Le crawl a été arrêté par l'utilisateur
+        job["status"] = "stopped"
+        job["end_time"] = datetime.now().isoformat()
+        job["error"] = str(e)
+        
+        await manager.send_job_update(job_id, {
+            "type": "log",
+            "message": f"Crawl arrêté: {str(e)}",
+            "level": "warning"
+        })
+        
+        logging.warning(f"Crawl arrêté pour la tâche {job_id}: {str(e)}")
+        
+    except Exception as e:
+        # Une erreur s'est produite pendant le crawl
+        job["status"] = "failed"
+        job["end_time"] = datetime.now().isoformat()
+        job["error"] = str(e)
+        
+        await manager.send_job_update(job_id, {
+            "type": "error",
+            "message": f"Erreur pendant le crawl: {str(e)}"
+        })
+        
+        logging.error(f"Erreur pendant le crawl pour la tâche {job_id}: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     import uvicorn
