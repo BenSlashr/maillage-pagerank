@@ -1,71 +1,36 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analyse - SEO Internal Linking Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        .upload-section {
-            background-color: #f8f9fa;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            margin-bottom: 2rem;
-        }
-        .footer {
-            margin-top: 3rem;
-            padding: 2rem 0;
-            background-color: #f8f9fa;
-        }
-        .progress-container {
-            margin-top: 2rem;
-        }
-        .log-container {
-            max-height: 300px;
-            overflow-y: auto;
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 0.25rem;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Accueil</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/analysis">Analyse</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/rules">Règles</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/crawler">Crawler</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/segment_rules">Segments</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% extends "layout.html" %}
 
-    <div class="container mt-4" x-data="analysisApp()" x-init="init()">
+{% block title %}Analyse - SEO Internal Linking Tool{% endblock %}
+
+{% block styles %}
+<style>
+    .upload-section {
+        background-color: var(--bs-gray-100);
+        padding: 2rem;
+        border-radius: 0.5rem;
+        margin-bottom: 2rem;
+    }
+    .progress-container {
+        margin-top: 2rem;
+    }
+    .progress-bar {
+        transition: width 0.5s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="container mt-4">
         <h1 class="mb-4">Analyse de maillage interne</h1>
         
-        <div x-show="!jobId">
-            <div class="upload-section">
-                <h3>Téléchargement des fichiers</h3>
-                
+        <div x-data="analysisApp()" x-init="init()" class="analysis-app">
+            <!-- Notification pour l'import GSC -->
+            <div x-show="gscNotificationVisible" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <strong>Données GSC importées !</strong> Les données de Google Search Console ont été automatiquement importées et sont prêtes à être utilisées pour l'analyse.
+                <button type="button" class="btn-close" @click="gscNotificationVisible = false" aria-label="Close"></button>
+            </div>
+            
+            <div x-show="!jobId">
                 <!-- Affichage des fichiers pré-remplis -->
                 <div class="alert alert-info mb-3" x-show="contentFilePath || linksFilePath || gscFilePath">
                     <h5><i class="bi bi-info-circle"></i> Fichiers pré-remplis détectés</h5>
@@ -78,14 +43,17 @@
                     <button class="btn btn-primary" @click="startAnalysisWithPrefilledFiles">Lancer l'analyse avec ces fichiers</button>
                 </div>
                 
-                <!-- Formulaire standard pour le téléchargement de fichiers -->
-                <div x-show="!contentFilePath">
-                    <div class="mb-3">
-                        <label for="contentFile" class="form-label">Fichier de contenu (obligatoire)</label>
-                        <input class="form-control" type="file" id="contentFile" @change="handleContentFileChange">
-                        <div class="form-text">Format Excel avec colonnes: Adresse, Segments, Extracteur 1 1</div>
+                <div class="upload-section">
+                    <h3>Téléchargement des fichiers</h3>
+                    
+                    <!-- Formulaire standard pour le téléchargement de fichiers -->
+                    <div x-show="!contentFilePath">
+                        <div class="mb-3">
+                            <label for="contentFile" class="form-label">Fichier de contenu (obligatoire)</label>
+                            <input class="form-control" type="file" id="contentFile" @change="handleContentFileChange">
+                            <div class="form-text">Format Excel avec colonnes: Adresse, Segments, Extracteur 1 1</div>
+                        </div>
                     </div>
-                </div>
                 
                 <div x-show="!linksFilePath">
                     <div class="mb-3">
@@ -99,8 +67,21 @@
                     <div class="mb-3">
                         <label for="gscFile" class="form-label">Fichier GSC (optionnel)</label>
                         <input class="form-control" type="file" id="gscFile" @change="handleGscFileChange">
-                        <div class="form-text">Format Excel avec colonnes: URL, Clics, Impressions, Position</div>
+                        <div class="form-text">Format Excel avec colonnes: query, page (format requis pour l'analyse des ancres)</div>
                     </div>
+                </div>
+                
+                <div x-show="gscFilePath" class="mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Fichier GSC sélectionné</label>
+                            <p class="text-success"><i class="bi bi-check-circle me-2"></i><strong x-text="gscFilePath"></strong></p>
+                        </div>
+                        <button @click="clearGscData" class="btn btn-outline-danger btn-sm" title="Effacer les données GSC">
+                            <i class="bi bi-trash"></i> Effacer
+                        </button>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -191,13 +172,10 @@
         </div>
     </div>
 
-    <footer class="footer">
-        <div class="container text-center">
-            <p>SEO Internal Linking Tool &copy; 2025</p>
-        </div>
-    </footer>
+{% endblock %}
 
-    <script>
+{% block scripts %}
+<script>
         function analysisApp() {
             return {
                 contentFilePath: null,
@@ -213,6 +191,7 @@
                 jobStatus: null,
                 logHistory: [],
                 socket: null,
+                gscNotificationVisible: false,
                 
                 // Initialisation à partir des paramètres d'URL
                 init() {
@@ -220,7 +199,8 @@
                     const urlParams = new URLSearchParams(window.location.search);
                     const contentParam = urlParams.get('content');
                     const linksParam = urlParams.get('links');
-                    const gscParam = urlParams.get('gsc');
+                    const gscParam = urlParams.get('gsc_file');
+                    const autoStartParam = urlParams.get('auto_start');
                     
                     // Si des paramètres sont présents, les utiliser pour pré-remplir les champs
                     if (contentParam) {
@@ -233,9 +213,43 @@
                         console.log('Fichier de liens pré-rempli:', linksParam);
                     }
                     
-                    if (gscParam) {
+                    // Vérifier d'abord si un fichier GSC est spécifié dans l'URL
+                    let hasGscFile = false;
+                    if (gscParam && gscParam !== 'undefined' && gscParam !== 'null') {
                         this.gscFilePath = gscParam;
-                        console.log('Fichier GSC pré-rempli:', gscParam);
+                        console.log('Fichier GSC pré-rempli depuis URL:', gscParam);
+                        hasGscFile = true;
+                        
+                        // Stocker le chemin dans localStorage pour le rendre persistant
+                        localStorage.setItem('gscFilePath', gscParam);
+                    } 
+                    // Sinon, vérifier s'il y a un fichier GSC dans le localStorage
+                    else {
+                        const storedGscPath = localStorage.getItem('gscFilePath');
+                        if (storedGscPath && storedGscPath !== 'undefined' && storedGscPath !== 'null') {
+                            this.gscFilePath = storedGscPath;
+                            console.log('Fichier GSC récupéré depuis localStorage:', storedGscPath);
+                            hasGscFile = true;
+                        } else {
+                            // Réinitialiser le chemin si la valeur est invalide
+                            this.gscFilePath = null;
+                            localStorage.removeItem('gscFilePath');
+                            console.log('Aucun fichier GSC valide trouvé');
+                        }
+                    }
+                    
+                    // Si un fichier GSC a été trouvé (URL ou localStorage)
+                    if (hasGscFile) {
+                        // Afficher une notification pour informer l'utilisateur que les données GSC ont été importées
+                        this.showGscImportNotification();
+                        
+                        // Si auto_start est présent et qu'un fichier de contenu est fourni, lancer automatiquement l'analyse
+                        if (autoStartParam === 'true' && contentParam) {
+                            // Laisser le temps à l'interface de se charger
+                            setTimeout(() => {
+                                this.startAnalysisWithPrefilledFiles();
+                            }, 500);
+                        }
                     }
                 },
                 
@@ -296,8 +310,15 @@
                     })
                     .then(response => response.json())
                     .then(data => {
+                        // Mettre à jour le chemin du fichier GSC
                         this.gscFilePath = data.saved_path;
                         console.log('Fichier GSC téléchargé:', data);
+                        
+                        // Stocker le nouveau chemin dans localStorage pour le rendre persistant
+                        localStorage.setItem('gscFilePath', data.saved_path);
+                        
+                        // Afficher une notification pour informer l'utilisateur que les données GSC ont été importées
+                        this.showGscImportNotification();
                     })
                     .catch(error => {
                         console.error('Erreur lors du téléchargement du fichier GSC:', error);
@@ -346,13 +367,19 @@
                     
                     this.socket.onmessage = (event) => {
                         const data = JSON.parse(event.data);
-                        console.log('Message WebSocket reçu:', data);
-                        
                         this.jobStatus = data;
                         
                         // Ajouter le message au journal s'il est nouveau
                         if (data.message && (this.logHistory.length === 0 || this.logHistory[this.logHistory.length - 1] !== data.message)) {
                             this.logHistory.push(data.message);
+                        }
+                        
+                        // Redirection automatique vers la page de résultats si l'analyse est terminée
+                        if (data.status === 'completed') {
+                            this.logHistory.push('Redirection automatique vers la page de résultats...');
+                            setTimeout(() => {
+                                window.location.href = `/results/${this.jobId}`;
+                            }, 1000);
                         }
                     };
                     
@@ -385,8 +412,15 @@
                                     this.logHistory.push(data.message);
                                 }
                                 
+                                // Redirection automatique vers la page de résultats si l'analyse est terminée
+                                if (data.status === 'completed') {
+                                    this.logHistory.push('Redirection automatique vers la page de résultats...');
+                                    setTimeout(() => {
+                                        window.location.href = `/results/${this.jobId}`;
+                                    }, 1000);
+                                }
                                 // Continuer à vérifier si l'analyse est toujours en cours
-                                if (data.status === 'running' || data.status === 'queued') {
+                                else if (data.status === 'running' || data.status === 'queued') {
                                     setTimeout(checkStatus, 2000);
                                 }
                             })
@@ -478,9 +512,28 @@
                 },
                 
                 // Méthode pour lancer l'analyse avec les fichiers pré-remplis
+                showGscImportNotification() {
+                    this.gscNotificationVisible = true;
+                    // Masquer la notification après 10 secondes
+                    setTimeout(() => {
+                        this.gscNotificationVisible = false;
+                    }, 10000);
+                },
+                
+                clearGscData() {
+                    // Effacer les données GSC du localStorage
+                    localStorage.removeItem('gscFilePath');
+                    this.gscFilePath = null;
+                    alert('Les données GSC ont été effacées. Vous pouvez maintenant télécharger un nouveau fichier GSC.');
+                },
+                
                 startAnalysisWithPrefilledFiles() {
-                    if (!this.contentFilePath) {
-                        alert('Le fichier de contenu est obligatoire pour lancer l\'analyse.');
+                    // Vérifier que nous avons un fichier de contenu valide
+                    const hasContentFile = this.contentFilePath && this.contentFilePath !== 'null' && this.contentFilePath !== 'undefined';
+                    const hasGscFile = this.gscFilePath && this.gscFilePath !== 'null' && this.gscFilePath !== 'undefined';
+                    
+                    if (!hasContentFile) {
+                        alert('Vous devez fournir un fichier de contenu pour lancer l\'analyse.');
                         return;
                     }
                     
@@ -488,18 +541,26 @@
                     const formData = new FormData();
                     
                     // Construire les chemins complets des fichiers
-                    const fullContentPath = `app/uploads/${this.contentFilePath}`;
-                    formData.append('content_file', fullContentPath);
-                    console.log('Chemin complet du fichier de contenu:', fullContentPath);
+                    if (hasContentFile) {
+                        const fullContentPath = this.contentFilePath.startsWith('app/uploads/') 
+                            ? this.contentFilePath 
+                            : `app/uploads/${this.contentFilePath}`;
+                        formData.append('content_file', fullContentPath);
+                        console.log('Chemin complet du fichier de contenu:', fullContentPath);
+                    }
                     
-                    if (this.linksFilePath) {
-                        const fullLinksPath = `app/uploads/${this.linksFilePath}`;
+                    if (this.linksFilePath && this.linksFilePath !== 'null' && this.linksFilePath !== 'undefined') {
+                        const fullLinksPath = this.linksFilePath.startsWith('app/uploads/') 
+                            ? this.linksFilePath 
+                            : `app/uploads/${this.linksFilePath}`;
                         formData.append('links_file', fullLinksPath);
                         console.log('Chemin complet du fichier de liens:', fullLinksPath);
                     }
                     
-                    if (this.gscFilePath) {
-                        const fullGscPath = `app/uploads/${this.gscFilePath}`;
+                    if (hasGscFile) {
+                        const fullGscPath = this.gscFilePath.startsWith('app/uploads/') 
+                            ? this.gscFilePath 
+                            : `app/uploads/${this.gscFilePath}`;
                         formData.append('gsc_file', fullGscPath);
                         console.log('Chemin complet du fichier GSC:', fullGscPath);
                     }
@@ -529,8 +590,4 @@
             };
         }
     </script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-</body>
-</html>
+{% endblock %}

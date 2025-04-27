@@ -1,128 +1,285 @@
 <!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SEO Internal Linking Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        .hero {
-            background-color: #f8f9fa;
-            padding: 4rem 0;
-            margin-bottom: 2rem;
-        }
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: #0d6efd;
-        }
-        .footer {
-            margin-top: 3rem;
-            padding: 2rem 0;
-            background-color: #f8f9fa;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/">Accueil</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/analysis">Analyse</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/rules">Règles</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/crawler">Crawler</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/segment_rules">Segments</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% extends "layout.html" %}
+
+{% block title %}Accueil - SEO Internal Linking Tool{% endblock %}
+
+{% block content %}
 
     <section class="hero">
         <div class="container text-center">
             <h1>Outil de Maillage Interne SEO</h1>
-            <p class="lead">Optimisez votre maillage interne grâce à l'intelligence artificielle</p>
-            <a href="/analysis" class="btn btn-primary btn-lg mt-3">Commencer une analyse</a>
+            <p class="lead">Optimisez votre maillage interne grâce à l'intelligence artificielle et améliorez votre référencement</p>
+            <p class="text-muted mb-4">Choisissez votre méthode préférée pour analyser votre site</p>
         </div>
     </section>
 
     <div class="container">
         <div class="row mb-5">
-            <div class="col-md-4 text-center">
-                <div class="feature-icon">📊</div>
-                <h3>Analyse sémantique</h3>
-                <p>Utilisation du modèle BERT pour analyser la pertinence sémantique entre vos pages.</p>
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow h-100 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="h3 mb-0"><i class="bi bi-lightning-charge me-2"></i>Parcours automatisé</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">Laissez notre outil faire tout le travail pour vous</p>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-globe fs-1 text-primary"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 1: Crawler votre site</h4>
+                                <p>Notre crawler intelligent récupère automatiquement le contenu et la structure de liens de votre site web.</p>
+                                <a href="/crawler" class="btn btn-outline-primary">
+                                    <i class="bi bi-globe me-1"></i> Lancer le crawler
+                                </a>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-google fs-1 text-primary"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 2: Connecter Google Search Console</h4>
+                                <p>Importez vos données de requêtes directement depuis GSC pour enrichir l'analyse avec des données réelles.</p>
+                                <a href="/gsc" class="btn btn-outline-primary">
+                                    <i class="bi bi-google me-1"></i> Connecter GSC
+                                </a>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-gear fs-1 text-primary"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 3: Configurer les règles de maillage</h4>
+                                <p>Définissez des règles précises entre vos segments (ex: articles de blog vers produits) pour un maillage stratégique.</p>
+                                <a href="/analysis#rules" class="btn btn-outline-primary">
+                                    <i class="bi bi-sliders me-1"></i> Configurer les règles
+                                </a>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-bar-chart fs-1 text-primary"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 4: Lancer l'analyse</h4>
+                                <p>Notre IA analyse vos contenus et suggère les meilleurs liens internes à créer en respectant vos règles de maillage.</p>
+                                <a href="/analysis" class="btn btn-primary">
+                                    <i class="bi bi-bar-chart me-1"></i> Commencer l'analyse
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i> Idéal pour les nouveaux utilisateurs et pour une analyse rapide et complète.</p>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-4 text-center">
-                <div class="feature-icon">🔗</div>
-                <h3>Suggestions de liens</h3>
-                <p>Obtenez des suggestions de liens internes pertinents pour améliorer votre SEO.</p>
-            </div>
-            <div class="col-md-4 text-center">
-                <div class="feature-icon">⚙️</div>
-                <h3>Règles personnalisées</h3>
-                <p>Définissez vos propres règles de maillage entre différents segments de votre site.</p>
+            
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow h-100 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h2 class="h3 mb-0"><i class="bi bi-file-earmark-excel me-2"></i>Parcours manuel</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">Importez vos propres fichiers pour un contrôle total</p>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-file-earmark-text fs-1 text-success"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 1: Préparer vos fichiers</h4>
+                                <p>Créez ou exportez vos fichiers de contenu, de liens et de GSC au format Excel.</p>
+                                <div class="btn-group">
+                                    <a href="/api/samples/content" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-download me-1"></i> Exemple contenu
+                                    </a>
+                                    <a href="/api/samples/links" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-download me-1"></i> Exemple liens
+                                    </a>
+                                    <a href="/api/samples/gsc" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-download me-1"></i> Exemple GSC
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-gear fs-1 text-success"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 2: Configurer les règles et segments</h4>
+                                <p>Définissez vos règles de maillage entre segments (catégories, produits, articles, etc.) pour contrôler précisément quelles pages peuvent se lier entre elles.</p>
+                                <a href="/analysis#rules" class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-sliders me-1"></i> Configurer les règles
+                                </a>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="feature-icon me-3">
+                                <i class="bi bi-bar-chart fs-1 text-success"></i>
+                            </div>
+                            <div>
+                                <h4>Étape 3: Lancer l'analyse</h4>
+                                <p>Importez vos fichiers et obtenez des suggestions de maillage interne précises.</p>
+                                <a href="/analysis" class="btn btn-success">
+                                    <i class="bi bi-bar-chart me-1"></i> Commencer l'analyse
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i> Idéal pour les utilisateurs avancés et pour une analyse avec des données personnalisées.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <h2>Comment ça marche</h2>
-                <ol class="mt-3">
-                    <li>Téléchargez votre fichier de contenu au format Excel</li>
-                    <li>Configurez les règles de maillage entre segments</li>
-                    <li>Lancez l'analyse et suivez la progression en temps réel</li>
-                    <li>Téléchargez les résultats et implémentez les suggestions</li>
-                </ol>
-            </div>
-            <div class="col-md-6">
-                <h2>Fichiers requis</h2>
-                <div class="card mt-3">
-                    <div class="card-body">
-                        <h5 class="card-title">Fichier de contenu (obligatoire)</h5>
-                        <p class="card-text">Fichier Excel contenant les colonnes : Adresse, Segments, Extracteur 1 1</p>
-                        <a href="/api/samples/content" class="btn btn-outline-primary btn-sm">Télécharger un exemple</a>
+        <div class="row mt-5">
+            <div class="col-12 mb-4">
+                <div class="card shadow rounded-lg">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="h4 mb-0"><i class="bi bi-stars me-2"></i>Fonctionnalités principales</h2>
                     </div>
-                </div>
-                <div class="card mt-3">
                     <div class="card-body">
-                        <h5 class="card-title">Fichier de liens existants (optionnel)</h5>
-                        <p class="card-text">Fichier Excel contenant les colonnes : Source, Destination</p>
-                        <a href="/api/samples/links" class="btn btn-outline-primary btn-sm">Télécharger un exemple</a>
-                    </div>
-                </div>
-                <div class="card mt-3">
-                    <div class="card-body">
-                        <h5 class="card-title">Fichier GSC (optionnel)</h5>
-                        <p class="card-text">Fichier Excel contenant les colonnes : URL, Clics, Impressions, Position</p>
-                        <a href="/api/samples/gsc" class="btn btn-outline-primary btn-sm">Télécharger un exemple</a>
+                        <div class="row">
+                            <div class="col-md-3 text-center mb-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="bi bi-graph-up text-primary fs-1"></i>
+                                </div>
+                                <h4>Analyse sémantique</h4>
+                                <p>Utilisation du modèle BERT pour analyser la pertinence sémantique entre vos pages.</p>
+                            </div>
+                            <div class="col-md-3 text-center mb-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="bi bi-google text-primary fs-1"></i>
+                                </div>
+                                <h4>Intégration GSC</h4>
+                                <p>Connectez-vous directement à Google Search Console pour importer vos données de requêtes.</p>
+                            </div>
+                            <div class="col-md-3 text-center mb-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="bi bi-link-45deg text-primary fs-1"></i>
+                                </div>
+                                <h4>Suggestions d'ancres</h4>
+                                <p>Obtenez des suggestions d'ancres pertinentes basées sur les requêtes réelles des utilisateurs.</p>
+                            </div>
+                            <div class="col-md-3 text-center mb-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="bi bi-gear text-primary fs-1"></i>
+                                </div>
+                                <h4>Règles par segments</h4>
+                                <p>Définissez des règles précises de maillage entre vos différents segments (catégories, produits, articles, etc.) pour une stratégie SEO optimale.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+        
+        <div class="row mt-4">
+            <div class="col-12 mb-4">
+                <div class="card shadow rounded-lg">
+                    <div class="card-header bg-info text-white">
+                        <h2 class="h4 mb-0"><i class="bi bi-question-circle me-2"></i>Questions fréquentes</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="accordion" id="faqAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingOne">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                                        Quels fichiers sont nécessaires pour l'analyse ?
+                                    </button>
+                                </h2>
+                                <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        <p>Le <strong>fichier de contenu</strong> est obligatoire pour toute analyse. Il doit contenir au minimum les colonnes : <code>Adresse</code>, <code>Titre</code> et <code>Contenu</code> (ou <code>Extracteur 1 1</code>).</p>
+                                        <p>Les fichiers <strong>de liens</strong> et <strong>GSC</strong> sont optionnels mais enrichissent considérablement l'analyse.</p>
+                                        <div class="mt-2">
+                                            <a href="/api/samples/content" class="btn btn-sm btn-outline-primary me-2">Exemple contenu</a>
+                                            <a href="/api/samples/links" class="btn btn-sm btn-outline-primary me-2">Exemple liens</a>
+                                            <a href="/api/samples/gsc" class="btn btn-sm btn-outline-primary">Exemple GSC</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingTwo">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                                        Comment fonctionne le crawler intégré ?
+                                    </button>
+                                </h2>
+                                <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        <p>Notre crawler analyse automatiquement votre site web pour extraire :</p>
+                                        <ul>
+                                            <li>Le contenu de vos pages (titres, textes)</li>
+                                            <li>La structure des liens internes existants</li>
+                                            <li>Les métadonnées importantes (balises title, h1, etc.)</li>
+                                        </ul>
+                                        <p>Il détecte automatiquement les segments de votre site (catégories, produits, articles, etc.) pour faciliter la configuration des règles de maillage.</p>
+                                        <p>Il génère ensuite les fichiers nécessaires à l'analyse de maillage interne, sans que vous ayez à les préparer manuellement.</p>
+                                        <div class="mt-2">
+                                            <a href="/crawler" class="btn btn-sm btn-primary">Lancer le crawler</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingThree">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                                        Comment utiliser les données de Google Search Console ?
+                                    </button>
+                                </h2>
+                                <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        <p>L'intégration GSC permet d'enrichir l'analyse avec les requêtes réelles des utilisateurs :</p>
+                                        <ol>
+                                            <li>Connectez-vous à votre compte Google via notre interface</li>
+                                            <li>Sélectionnez le site à analyser et la période</li>
+                                            <li>Importez les données directement dans l'outil d'analyse</li>
+                                        </ol>
+                                        <p>Ces données permettent de générer des suggestions d'ancres pertinentes basées sur les requêtes qui amènent du trafic à vos pages.</p>
+                                        <div class="mt-2">
+                                            <a href="/gsc" class="btn btn-sm btn-primary">Connecter GSC</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingFour">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                                        Comment configurer les règles de maillage par segments ?
+                                    </button>
+                                </h2>
+                                <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        <p>Les règles de maillage par segments sont essentielles pour une stratégie SEO efficace :</p>
+                                        <ol>
+                                            <li><strong>Identifiez vos segments</strong> : catégories, produits, articles de blog, pages institutionnelles, etc.</li>
+                                            <li><strong>Définissez les relations</strong> : quels segments peuvent pointer vers quels autres segments</li>
+                                            <li><strong>Paramétrez le nombre de liens</strong> : combien de liens maximum entre chaque segment</li>
+                                        </ol>
+                                        <p>Exemples de règles stratégiques :</p>
+                                        <ul>
+                                            <li>Articles de blog → Pages produits (pour convertir les lecteurs en clients)</li>
+                                            <li>Pages catégories → Articles de blog (pour enrichir le contenu des catégories)</li>
+                                            <li>Pages produits → Produits complémentaires (pour augmenter le panier moyen)</li>
+                                        </ul>
+                                        <div class="mt-2">
+                                            <a href="/analysis#rules" class="btn btn-sm btn-primary">Configurer les règles</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+
     </div>
 
-    <footer class="footer">
-        <div class="container text-center">
-            <p>SEO Internal Linking Tool &copy; 2025</p>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

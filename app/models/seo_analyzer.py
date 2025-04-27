@@ -506,24 +506,44 @@ class SEOAnalyzer:
                 # Calculer la similarité cosinus entre les embeddings
                 similarity_matrix[i, j] = np.dot(embeddings[i], embeddings[j]) / (np.linalg.norm(embeddings[i]) * np.linalg.norm(embeddings[j]))
         
-        # Parcourir chaque page pour générer des suggestions
-        for i, source_row in enumerate(content_df.itertuples()):
-            source_url = source_row.url
-            source_type = source_row.type
-            source_content = source_row.content1
+        # Calculer les similarités et générer les suggestions pour chaque page
+        for i, (source_idx, source_row) in enumerate(content_df.iterrows()):
+            source_url = source_row["url"]
+            source_content = source_row["content1"]
+            source_type = source_row["type"]
             
-            # Mettre à jour la progression
+            # Mise à jour de la progression
             if self.progress_callback:
-                asyncio.create_task(self.progress_callback(f"Analyse de la page {i+1}/{len(content_df)}: {source_url}", i+1, len(content_df)))
+                # Créer une tâche asynchrone pour le callback sans attendre
+                if asyncio.iscoroutinefunction(self.progress_callback):
+                    asyncio.create_task(self.progress_callback(f"Génération des suggestions pour {source_url}", i, len(content_df)))
+                else:
+                    self.progress_callback(f"Génération des suggestions pour {source_url}", i, len(content_df))
             
-            # Obtenir les scores de similarité pour cette page
-            similarities = similarity_matrix[i]
+            # Initialiser la liste des suggestions pour cette page
+            suggestions_for_page = []
+            
+            # Si des règles de maillage sont définies, préparer un dictionnaire pour suivre le nombre de liens par type
+            type_link_counts = {}
+            if linking_rules and source_type in linking_rules:
+                # Initialiser le compteur pour chaque type cible
+                for target_type in linking_rules[source_type].keys():
+                    # Compter le nombre de liens existants de ce type
+                    existing_count = sum(1 for s, d in existing_links_set if s == source_url and content_df[content_df["url"] == d]["type"].iloc[0] == target_type)
+                    type_link_counts[target_type] = {
+                        "existing": existing_count,
+                        "suggested": 0,
+                        "min": linking_rules[source_type][target_type].get("min_links", 0),
+                        "max": linking_rules[source_type][target_type].get("max_links", 10)
+                    }
+            
+            # Créer deux listes de suggestions : une pour les suggestions obligatoires (pour atteindre le minimum par type)
+            # et une pour les suggestions facultatives (basées uniquement sur la similarité)
+            mandatory_suggestions = []
+            optional_suggestions = []
             
             # Trier les indices par score de similarité (du plus élevé au plus bas)
-            sorted_indices = np.argsort(similarities)[::-1]
-            
-            # Filtrer les pages avec une similarité suffisante
-            suggestions_for_page = []
+            sorted_indices = np.argsort(similarity_matrix[source_idx])[::-1]
             
             # Bonus de similarité pour les URL prioritaires (pour les favoriser dans le tri)
             priority_bonus = 0.1 if priority_urls_set else 0
@@ -537,6 +557,79 @@ class SEOAnalyzer:
             else:
                 max_suggestions = 10  # Valeur par défaut
             
+            # Première passe : traiter les suggestions pour atteindre le nombre minimum de liens par type
+            if linking_rules and source_type in linking_rules:
+                for j in sorted_indices:
+                    # Ignorer la page elle-même
+                    if i == j:
+                        continue
+                    
+                    # Récupérer les informations de la page cible
+                    target_row = content_df.iloc[j]
+                    target_url = target_row["url"]
+                    target_type = target_row["type"]
+                    
+                    # Vérifier si ce type de cible est dans les règles et si le minimum n'est pas atteint
+                    if target_type in linking_rules[source_type]:
+                        # Récupérer les compteurs pour ce type
+                        type_counts = type_link_counts.get(target_type, {})
+                        if not type_counts:
+                            continue
+                            
+                        # Vérifier si nous avons déjà atteint le minimum requis pour ce type
+                        total_links = type_counts["existing"] + type_counts["suggested"]
+                        if total_links >= type_counts["min"]:
+                            continue
+                            
+                        # Vérifier si nous avons déjà atteint le maximum pour ce type
+                        if total_links >= type_counts["max"]:
+                            continue
+                    
+                        # Ignorer la page elle-même (par URL normalisée)
+                        source_url_normalized = self._normalize_url(source_url)
+                        target_url_normalized = self._normalize_url(target_url)
+                        if source_url_normalized == target_url_normalized:
+                            continue
+                        
+                        # Vérifier si le lien existe déjà
+                        if (source_url, target_url) in existing_links_set or \
+                           (source_url_normalized, target_url_normalized) in normalized_existing_links_set or \
+                           (source_url_normalized, target_url_normalized) in bidirectional_links_set:
+                            continue
+                        
+                        # Récupérer la similarité de base
+                        similarity_score = similarity_matrix[source_idx][j]
+                        
+                        # Appliquer un bonus pour les URL prioritaires
+                        if target_url in priority_urls_set:
+                            similarity_score = min(similarity_score + priority_bonus, 1.0)
+                        
+                        # Vérifier si la similarité est suffisante
+                        if similarity_score < min_similarity:
+                            continue
+                        
+                        # Extraire des suggestions d'ancres
+                        anchors = self._extract_anchor_suggestions(source_content, target_row["content1"], anchor_suggestions, target_url, gsc_queries)
+                        
+                        # Ajouter la suggestion obligatoire
+                        mandatory_suggestions.append({
+                            "target_url": target_url,
+                            "similarity": similarity_score,
+                            "target_type": target_type,
+                            "anchors": anchors,
+                            "gsc_stats": gsc_stats.get(target_url, {}),
+                            "is_priority": target_url in priority_urls_set,
+                            "is_mandatory": True  # Marquer comme obligatoire pour les règles de maillage
+                        })
+                        
+                        # Mettre à jour le compteur de liens suggérés pour ce type
+                        type_link_counts[target_type]["suggested"] += 1
+                        
+                        # Arrêter si nous avons atteint le minimum pour ce type
+                        if type_link_counts[target_type]["existing"] + type_link_counts[target_type]["suggested"] >= type_link_counts[target_type]["min"]:
+                            logging.debug(f"Minimum atteint pour le type {target_type} depuis {source_url}")
+            
+            # Deuxième passe : ajouter des suggestions facultatives basées sur la similarité
             for j in sorted_indices:
                 # Ignorer la page elle-même
                 if i == j:
@@ -545,65 +638,73 @@ class SEOAnalyzer:
                 # Récupérer les informations de la page cible
                 target_row = content_df.iloc[j]
                 target_url = target_row["url"]
+                target_type = target_row["type"]
                 
                 # Ignorer la page elle-même (par URL normalisée)
-                # Normaliser les URLs pour gérer les cas avec/sans slash final ou paramètres
                 source_url_normalized = self._normalize_url(source_url)
                 target_url_normalized = self._normalize_url(target_url)
                 if source_url_normalized == target_url_normalized:
-                    logging.debug(f"Ignoré auto-lien: {source_url} -> {target_url}")
                     continue
                 
-                # Récupérer la similarité de base
-                similarity_score = similarities[j]
-                target_type = target_row["type"]
-                
-                if target_url in priority_urls_set:
-                    # Appliquer un bonus pour favoriser les liens vers les URL prioritaires
-                    # Limiter la similarité maximale à 1.0 (100%)
-                    similarity_score = min(similarity_score + priority_bonus, 1.0)
-                    logging.debug(f"Bonus de similarité appliqué pour l'URL prioritaire: {target_url} (plafonné à 100%)")
-                
-                # Vérifier si la similarité (avec ou sans bonus) est suffisante
-                if similarity_score < min_similarity:
-                    continue
-                
-                # Vérifier si le lien existe déjà (en utilisant les URLs brutes, normalisées, et vérifier les liens bidirectionnels)
+                # Vérifier si le lien existe déjà ou est déjà dans les suggestions obligatoires
                 if (source_url, target_url) in existing_links_set or \
                    (source_url_normalized, target_url_normalized) in normalized_existing_links_set or \
-                   (source_url_normalized, target_url_normalized) in bidirectional_links_set:
-                    logging.debug(f"Lien existant ignoré: {source_url} -> {target_url}")
+                   (source_url_normalized, target_url_normalized) in bidirectional_links_set or \
+                   any(s["target_url"] == target_url for s in mandatory_suggestions):
                     continue
                 
                 # Vérifier les règles de maillage si elles sont définies
                 if linking_rules and source_type in linking_rules and target_type in linking_rules[source_type]:
-                    rule = linking_rules[source_type][target_type]
-                    min_links = rule.get("min_links", 0)
-                    max_links = rule.get("max_links", 10)
-                    
-                    # Compter le nombre de liens existants de ce type
-                    existing_count = sum(1 for s, d in existing_links_set if s == source_url and content_df[content_df["url"] == d]["type"].iloc[0] == target_type)
-                    
-                    # Vérifier si on a déjà atteint le nombre maximum de liens
-                    if existing_count >= max_links:
-                        continue
+                    # Vérifier si nous avons déjà atteint le maximum pour ce type
+                    type_counts = type_link_counts.get(target_type, {})
+                    if type_counts:
+                        total_links = type_counts["existing"] + type_counts["suggested"]
+                        if total_links >= type_counts["max"]:
+                            continue
                 
-                # Extraire des suggestions d'ancres basées sur les requêtes GSC
+                # Récupérer la similarité de base
+                similarity_score = similarity_matrix[source_idx][j]
+                
+                # Appliquer un bonus pour les URL prioritaires
+                if target_url in priority_urls_set:
+                    similarity_score = min(similarity_score + priority_bonus, 1.0)
+                
+                # Vérifier si la similarité est suffisante
+                if similarity_score < min_similarity:
+                    continue
+                
+                # Extraire des suggestions d'ancres
                 anchors = self._extract_anchor_suggestions(source_content, target_row["content1"], anchor_suggestions, target_url, gsc_queries)
                 
-                # Ajouter la suggestion
-                suggestions_for_page.append({
+                # Ajouter la suggestion facultative
+                optional_suggestions.append({
                     "target_url": target_url,
-                    "similarity": similarity_score,  # Utiliser le score avec bonus si appliqué
+                    "similarity": similarity_score,
                     "target_type": target_type,
                     "anchors": anchors,
                     "gsc_stats": gsc_stats.get(target_url, {}),
-                    "is_priority": target_url in priority_urls_set  # Marquer si c'est une URL prioritaire
+                    "is_priority": target_url in priority_urls_set,
+                    "is_mandatory": False  # Marquer comme facultative
                 })
                 
-                # Limiter le nombre de suggestions selon max_suggestions
-                if len(suggestions_for_page) >= max_suggestions:
+                # Mettre à jour le compteur si nécessaire
+                if linking_rules and source_type in linking_rules and target_type in linking_rules[source_type]:
+                    type_link_counts[target_type]["suggested"] += 1
+                
+                # Limiter le nombre de suggestions facultatives
+                remaining_slots = max_suggestions - len(mandatory_suggestions)
+                if len(optional_suggestions) >= remaining_slots:
                     break
+            
+            # Combiner les suggestions obligatoires et facultatives
+            suggestions_for_page = mandatory_suggestions + optional_suggestions
+            
+            # Trier par similarité décroissante
+            suggestions_for_page.sort(key=lambda x: x["similarity"], reverse=True)
+            
+            # Limiter au nombre maximum de suggestions
+            if len(suggestions_for_page) > max_suggestions:
+                suggestions_for_page = suggestions_for_page[:max_suggestions]
             
             # Ajouter les suggestions pour cette page
             for suggestion in suggestions_for_page:

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Request, Query
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -41,14 +41,30 @@ class CustomJSONEncoder(json.JSONEncoder):
 # Ajouter le répertoire parent au chemin pour les imports relatifs
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Supprimer les anciens tokens au démarrage
+import os
+import shutil
+app_root = os.path.abspath(os.path.dirname(__file__))
+token_dir = os.path.join(app_root, 'tokens')
+os.makedirs(token_dir, exist_ok=True)
+token_file = os.path.join(token_dir, 'token.json')
+if os.path.exists(token_file):
+    os.remove(token_file)
+
 # Import des modules
-from models.pagerank import calculate_pagerank, calculate_pagerank_with_suggestions, prepare_graph_data, calculate_weighted_pagerank, calculate_weighted_pagerank_with_suggestions
-from models.priority_urls import PriorityURLManager
-from models.pagerank_cache import PageRankCache
-from models.crawler import WebCrawler
-from models.segment_rules import SegmentRuleManager
-from models.seo_analyzer import SEOAnalyzer
-from models.filter_self_links import filter_self_links
+from app.models.pagerank import calculate_pagerank, calculate_pagerank_with_suggestions, prepare_graph_data, calculate_weighted_pagerank, calculate_weighted_pagerank_with_suggestions
+from app.models.graph_utils import calculate_page_depths, identify_frequent_links
+from app.models.priority_urls import PriorityURLManager
+from app.models.pagerank_cache import PageRankCache
+from app.models.crawler import WebCrawler
+from app.models.segment_rules import SegmentRuleManager
+from app.models.seo_analyzer import SEOAnalyzer
+from app.routers import google_config_api
+from app.routers import simple_google_api  # Notre implémentation simplifiée
+from starlette.middleware.sessions import SessionMiddleware
+from app.services.google_auth_session import SECRET_KEY, BASE_URL
+from app.services.google_credentials_manager import has_credentials, get_credentials_info, mask_client_id
+from app.models.filter_self_links import filter_self_links
 
 # Initialisation du cache PageRank (5 minutes par défaut)
 pagerank_cache = PageRankCache(cache_duration_seconds=300)
@@ -127,16 +143,31 @@ app.add_middleware(
 )
 
 # Création des dossiers pour les uploads et les résultats
-os.makedirs("app/uploads/content", exist_ok=True)
-os.makedirs("app/uploads/links", exist_ok=True)
-os.makedirs("app/uploads/gsc", exist_ok=True)
-os.makedirs("app/results", exist_ok=True)
+base_dir = os.path.dirname(__file__)
+os.makedirs(os.path.join(base_dir, "uploads", "content"), exist_ok=True)
+os.makedirs(os.path.join(base_dir, "uploads", "links"), exist_ok=True)
+os.makedirs(os.path.join(base_dir, "uploads", "gsc"), exist_ok=True)
+os.makedirs(os.path.join(base_dir, "results"), exist_ok=True)
 
 # Montage du dossier static pour servir les fichiers statiques
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
+# Ajout du middleware de session pour l'authentification Google
+# Augmentation de la durée de vie de la session à 24 heures (86400 secondes)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=SECRET_KEY, 
+    max_age=86400,  # 24 heures
+    same_site="lax",  # Pour permettre les redirections OAuth
+    https_only=False  # Mettre à True en production avec HTTPS
+)
+
+# Ajouter les routeurs
+app.include_router(simple_google_api.router)  # Utiliser notre implémentation simplifiée
+app.include_router(google_config_api.router)
 
 # Configuration des templates Jinja2
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 # Dictionnaire pour suivre les tâches en cours
 jobs = {}
@@ -190,8 +221,37 @@ class AnalysisConfig(BaseModel):
 
 # Routes pour les pages HTML
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/gsc", response_class=HTMLResponse)
+def gsc_page(request: Request):
+    return templates.TemplateResponse("gsc.html", {"request": request})
+
+@app.get("/google-config", response_class=HTMLResponse)
+def google_config_page(request: Request):
+    # Récupérer les informations sur les identifiants Google
+    credentials_info = get_credentials_info()
+    has_creds = has_credentials()
+    
+    # Récupérer les messages de la session
+    message = request.session.pop("credentials_message", None)
+    success = request.session.pop("credentials_success", None)
+    
+    # Préparer les données pour le template
+    context = {
+        "request": request,
+        "has_credentials": has_creds,
+        "redirect_uri": f"{BASE_URL}/api/google/callback",
+        "message": message,
+        "success": success
+    }
+    
+    if has_creds and credentials_info:
+        context["client_id_masked"] = mask_client_id(credentials_info.get("client_id", ""))
+        context["project_id"] = credentials_info.get("project_id", "Non spécifié")
+    
+    return templates.TemplateResponse("google_config.html", context)
 
 @app.get("/analysis", response_class=HTMLResponse)
 async def analysis_page(request: Request):
@@ -199,7 +259,7 @@ async def analysis_page(request: Request):
 
 @app.get("/rules", response_class=HTMLResponse)
 async def rules_page(request: Request):
-    return templates.TemplateResponse("rules_editor.html", {"request": request})
+    return templates.TemplateResponse("rules.html", {"request": request})
 
 @app.get("/crawler")
 async def get_crawler_page(request: Request):
@@ -218,16 +278,19 @@ async def read_results(request: Request, job_id: str):
 
 @app.get("/visualization/{job_id}", response_class=HTMLResponse)
 async def read_visualization(request: Request, job_id: str):
-    """Page de visualisation du maillage interne"""
+    """
+    Redirige vers la visualisation Cytoscape du maillage interne.
+    
+    Args:
+        request: Requête HTTP
+        job_id: Identifiant de la tâche d'analyse
+    """
+    # Vérifier que la tâche existe
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Tâche non trouvée")
         
-    job = jobs[job_id]
-    if job["status"] != "completed":
-        # Rediriger vers la page de résultats si l'analyse n'est pas terminée
-        return RedirectResponse(url=f"/results/{job_id}")
-        
-    return templates.TemplateResponse("visualization.html", {"request": request, "job_id": job_id})
+    # Rediriger vers la visualisation Cytoscape
+    return RedirectResponse(url=f"/cytoscape/{job_id}")
 
 @app.get("/cytoscape/{job_id}", response_class=HTMLResponse)
 async def read_cytoscape_visualization(request: Request, job_id: str):
@@ -305,17 +368,53 @@ async def upload_gsc_file(file: UploadFile = File(...)):
     logging.info(f"Requête reçue pour /api/upload/gsc: {file.filename}")
     try:
         file_path = await save_uploaded_file(file, "gsc")
-        required_columns_gsc = ["Query", "Page", "Clicks", "Impressions", "CTR", "Position"]
-        validation_result = await run_in_threadpool(validate_excel_file, file_path, required_columns=required_columns_gsc)
-
+        
+        # Les colonnes query et page sont obligatoires pour l'analyse des ancres
+        # L'ordre query/page est important pour avoir plusieurs requêtes par page
+        required_columns_gsc = [["query", "page"], ["Query", "Page"]]
+        
+        # Déterminer le type de fichier en fonction de l'extension
+        file_extension = os.path.splitext(file_path)[1].lower()
+        validation_result = {"valid": False, "message": "Format de fichier non supporté"}
+        
+        if file_extension == '.csv':
+            # Valider le fichier CSV
+            logging.info(f"Validation du fichier CSV: {file_path}")
+            # Essayer d'abord avec les colonnes en minuscules (format simplifié)
+            validation_result = await run_in_threadpool(validate_csv_file, file_path, required_columns=required_columns_gsc[0], case_sensitive=True)
+            
+            # Si la validation échoue avec les colonnes en minuscules, essayer avec les colonnes en majuscules
+            if not validation_result["valid"]:
+                validation_result = await run_in_threadpool(validate_csv_file, file_path, required_columns=required_columns_gsc[1], case_sensitive=True)
+                
+        elif file_extension in ['.xlsx', '.xlsm', '.xltx', '.xltm']:
+            # Valider le fichier Excel
+            logging.info(f"Validation du fichier Excel: {file_path}")
+            # Essayer d'abord avec les colonnes en minuscules (format simplifié)
+            validation_result = await run_in_threadpool(validate_excel_file, file_path, required_columns=required_columns_gsc[0], case_sensitive=True)
+            
+            # Si la validation échoue avec les colonnes en minuscules, essayer avec les colonnes en majuscules
+            if not validation_result["valid"]:
+                validation_result = await run_in_threadpool(validate_excel_file, file_path, required_columns=required_columns_gsc[1], case_sensitive=True)
+        else:
+            validation_result = {"valid": False, "message": f"Format de fichier non supporté: {file_extension}. Seuls les formats CSV et Excel (.xlsx, .xlsm, .xltx, .xltm) sont acceptés."}
+        
+        # Si la validation échoue, supprimer le fichier et lever une exception
         if not validation_result["valid"]:
             if os.path.exists(file_path):
                 os.remove(file_path)
             logging.error(f"Fichier GSC invalide supprimé: {file_path} - Raison: {validation_result['message']}")
-            raise HTTPException(status_code=400, detail=validation_result['message'])
+            raise HTTPException(status_code=400, detail="Le fichier GSC doit contenir au minimum les colonnes 'query' et 'page' dans cet ordre (ou 'Query' et 'Page') et être au format CSV ou Excel (.xlsx)")
 
         logging.info(f"Fichier GSC uploadé et validé: {file_path}")
-        return {"filename": file.filename, "saved_path": file_path, "message": "Fichier GSC uploadé avec succès.", "valid": True}
+        # Renvoyer à la fois saved_path et file_path pour assurer la compatibilité
+        return {
+            "filename": file.filename, 
+            "saved_path": file_path, 
+            "file_path": file_path,  # Ajouter file_path pour la compatibilité avec le frontend
+            "message": "Fichier GSC uploadé avec succès.", 
+            "valid": True
+        }
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -323,7 +422,7 @@ async def upload_gsc_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Erreur interne du serveur lors de l'upload: {str(e)}")
 
 @app.get("/api/segments")
-async def get_segments(content_file: str):
+async def get_segments(content_file: str = Query(..., description="Chemin vers le fichier de contenu")):
     """Récupère les segments uniques du fichier de contenu"""
     try:
         if not os.path.exists(content_file):
@@ -592,34 +691,41 @@ async def analyze_content(
     gsc_file: Optional[str] = Form(None),
     config: str = Form(...)
 ):
-    """Lance l'analyse du contenu et génère des suggestions de maillage interne"""
+    """Lance l'analyse du contenu et génère des suggestions de maillage interne
+    
+    Le fichier de contenu est obligatoire.
+    Les fichiers de liens et GSC sont optionnels.
+    """
     try:
-        # Normaliser les chemins de fichiers
-        content_file = normalize_file_path(content_file)
+        # Vérifier que le fichier de contenu est fourni
+        if not content_file:
+            logging.error("Aucun fichier de contenu fourni pour l'analyse")
+            raise HTTPException(status_code=400, detail="Vous devez fournir un fichier de contenu pour lancer l'analyse")
+        
+        # Normaliser les chemins de fichiers s'ils existent
+        if content_file:
+            content_file = normalize_file_path(content_file)
+            logging.info(f"Fichier de contenu normalisé: {content_file}")
+            # Vérifier que le fichier de contenu existe
+            if not os.path.exists(content_file):
+                logging.error(f"Fichier de contenu non trouvé: {content_file}")
+                raise HTTPException(status_code=404, detail="Fichier de contenu non trouvé")
+        
         if links_file:
             links_file = normalize_file_path(links_file)
+            logging.info(f"Fichier de liens normalisé: {links_file}")
+            # Vérifier que le fichier de liens existe
+            if not os.path.exists(links_file):
+                logging.error(f"Fichier de liens non trouvé: {links_file}")
+                raise HTTPException(status_code=404, detail="Fichier de liens non trouvé")
+        
         if gsc_file:
             gsc_file = normalize_file_path(gsc_file)
-            
-        # Journaliser les chemins de fichiers pour le débogage
-        logging.info(f"Fichier de contenu normalisé: {content_file}")
-        if links_file:
-            logging.info(f"Fichier de liens normalisé: {links_file}")
-        if gsc_file:
             logging.info(f"Fichier GSC normalisé: {gsc_file}")
-        
-        # Vérifier que les fichiers existent
-        if not os.path.exists(content_file):
-            logging.error(f"Fichier de contenu non trouvé: {content_file}")
-            raise HTTPException(status_code=404, detail="Fichier de contenu non trouvé")
-
-        if links_file and not os.path.exists(links_file):
-            logging.error(f"Fichier de liens non trouvé: {links_file}")
-            raise HTTPException(status_code=404, detail="Fichier de liens non trouvé")
-
-        if gsc_file and not os.path.exists(gsc_file):
-            logging.error(f"Fichier GSC non trouvé: {gsc_file}")
-            raise HTTPException(status_code=404, detail="Fichier GSC non trouvé")
+            # Vérifier que le fichier GSC existe
+            if not os.path.exists(gsc_file):
+                logging.error(f"Fichier GSC non trouvé: {gsc_file}")
+                raise HTTPException(status_code=404, detail="Fichier GSC non trouvé")
 
         # Charger la configuration
         try:
@@ -795,7 +901,7 @@ async def get_graph_data(job_id: str):
 
 # Endpoint pour la visualisation Cytoscape
 @app.get("/api/visualization-data/{job_id}")
-async def get_visualization_data(job_id: str, content_links_only: bool = False, use_weighted_pagerank: bool = False, alpha: float = 0.5, beta: float = 0.5):
+async def get_visualization_data(job_id: str, content_links_only: bool = False, use_weighted_pagerank: bool = False, alpha: float = 0.5, beta: float = 0.5, root_url: Optional[str] = None, filter_frequent_links: bool = False, frequent_links_threshold: float = 80.0):
     """Récupère les données combinées (graphe et PageRank) pour la visualisation Cytoscape"""
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Tâche non trouvée")
@@ -810,6 +916,44 @@ async def get_visualization_data(job_id: str, content_links_only: bool = False, 
         else:
             pagerank_data = await get_pagerank(job_id, content_links_only=content_links_only)
         
+        # Récupérer les liens pour le calcul des profondeurs et l'identification des liens fréquents
+        job = jobs[job_id]
+        links_file = job.get("links_file")
+        links_df = None
+        
+        if links_file and os.path.exists(links_file):
+            links_df = pd.read_excel(links_file)
+            
+            # Calculer la profondeur des pages si une racine est spécifiée
+            page_depths = {}
+            if root_url:
+                logging.info(f"Calcul des profondeurs à partir de la racine: {root_url}")
+                page_depths = calculate_page_depths(links_df, root_url)
+                
+                # Ajouter les profondeurs aux nœuds du graphe
+                for node in graph_data.get("nodes", []):
+                    node_id = node.get("id")
+                    if node_id in page_depths:
+                        if "metrics" not in node:
+                            node["metrics"] = {}
+                        node["metrics"]["depth"] = page_depths[node_id]
+            
+            # Identifier les liens fréquents si demandé
+            frequent_links = []
+            if filter_frequent_links:
+                logging.info(f"Identification des liens fréquents avec seuil: {frequent_links_threshold}%")
+                frequent_links = identify_frequent_links(links_df, frequent_links_threshold)
+                
+                # Marquer les liens fréquents dans le graphe
+                frequent_links_set = set(frequent_links)
+                for edge in graph_data.get("edges", {}).get("current", []):
+                    source = edge.get("source")
+                    target = edge.get("target")
+                    if (source, target) in frequent_links_set:
+                        edge["frequent"] = True
+                    else:
+                        edge["frequent"] = False
+        
         # Combiner les données
         visualization_data = {
             "graph": graph_data,
@@ -818,9 +962,36 @@ async def get_visualization_data(job_id: str, content_links_only: bool = False, 
                 "use_weighted_pagerank": use_weighted_pagerank,
                 "content_links_only": content_links_only,
                 "alpha": alpha,
-                "beta": beta
+                "beta": beta,
+                "filter_frequent_links": filter_frequent_links,
+                "frequent_links_threshold": frequent_links_threshold,
+                "root_url": root_url
             }
         }
+        
+        # Ajouter les données de profondeur si calculées
+        if root_url and links_df is not None:
+            # Calculer des statistiques par niveau de profondeur
+            depth_stats = {}
+            for node in graph_data.get("nodes", []):
+                node_id = node.get("id")
+                if node_id in page_depths:
+                    depth = page_depths[node_id]
+                    if depth not in depth_stats:
+                        depth_stats[depth] = {"count": 0, "types": {}}
+                    depth_stats[depth]["count"] += 1
+                    
+                    # Compter par type
+                    node_type = node.get("type", "unknown")
+                    if node_type not in depth_stats[depth]["types"]:
+                        depth_stats[depth]["types"][node_type] = 0
+                    depth_stats[depth]["types"][node_type] += 1
+            
+            visualization_data["depth_data"] = {
+                "depths": page_depths,
+                "stats": depth_stats,
+                "max_depth": max(page_depths.values()) if page_depths else 0
+            }
         
         return visualization_data
         
@@ -1369,7 +1540,8 @@ async def start_crawl(
     max_pages: int = Form(10000),
     respect_robots: bool = Form(True),
     crawl_delay: float = Form(0.5),
-    exclude_patterns: str = Form("")
+    exclude_patterns: str = Form(""),
+    exclude_from_linking_patterns: str = Form("")
 ):
     """
     Démarre une tâche de crawling d'un site web.
@@ -1379,6 +1551,8 @@ async def start_crawl(
         max_pages: Nombre maximum de pages à crawler
         respect_robots: Si True, respecte les règles du robots.txt
         crawl_delay: Délai entre les requêtes en secondes
+        exclude_patterns: Patterns d'URLs à exclure du crawl (une par ligne)
+        exclude_from_linking_patterns: Patterns d'URLs à exclure du plan de maillage mais pas du crawl (une par ligne)
     
     Returns:
         ID de la tâche de crawl
@@ -1409,7 +1583,8 @@ async def start_crawl(
                 "respect_robots": respect_robots,
                 "crawl_delay": crawl_delay,
                 "segment_rules_file": "app/data/segment_rules.json",
-                "exclude_patterns": [pattern.strip() for pattern in exclude_patterns.split("\n") if pattern.strip()]
+                "exclude_patterns": [pattern.strip() for pattern in exclude_patterns.split("\n") if pattern.strip()],
+                "exclude_from_linking_patterns": [pattern.strip() for pattern in exclude_from_linking_patterns.split("\n") if pattern.strip()]
             },
             "results": {
                 "content_file": None,
@@ -1718,47 +1893,77 @@ async def run_analysis(job_id: str):
                 priority_manager = PriorityURLManager(job_id)
                 priority_manager.add_priority_urls(priority_urls)
         
+        # Vérifier que le fichier de contenu est disponible
+        if not content_file:
+            error_msg = "Aucun fichier de contenu valide n'a été fourni pour l'analyse"
+            logging.error(f"[Job {job_id}] {error_msg}")
+            job["status"] = "failed"
+            job["message"] = error_msg
+            job["end_time"] = datetime.now().isoformat()
+            await manager.send_job_update(job_id, job)
+            return
+            
         # Exécuter l'analyse
         logging.info(f"[Job {job_id}] Lancement de seo_analyzer.analyze...")
-        result_file = await seo_analyzer.analyze(
-            content_file=content_file,
-            links_file=links_file,
-            gsc_file=gsc_file,
-            min_similarity=float(config.get("minSimilarity", 0.2)),  # Extraire et convertir en float
-            anchor_suggestions=int(config.get("anchorSuggestions", 3)),  # Extraire et convertir en int
-            linking_rules=linking_rules,
-            priority_urls=priority_urls,
-            priority_urls_strict=priority_urls_strict
-        )
-        logging.info(f"[Job {job_id}] Analyse terminée par seo_analyzer.analyze. Fichier résultat: {result_file}")
+        logging.info(f"[Job {job_id}] Mode d'analyse: {'Contenu' + (' + GSC' if gsc_file else '')}")
         
-        # Filtrer les auto-liens dans le fichier de résultats
         try:
-            logging.info(f"[Job {job_id}] Filtrage des auto-liens dans le fichier de résultats...")
-            # Charger le fichier Excel
-            suggestions_df = pd.read_excel(result_file, sheet_name="Suggestions")
-            
-            # Appliquer le filtre pour supprimer les auto-liens
-            filtered_df = filter_self_links(suggestions_df)
-            
-            # Sauvegarder le fichier filtré
-            with pd.ExcelWriter(result_file, engine='openpyxl') as writer:
-                filtered_df.to_excel(writer, sheet_name='Suggestions', index=False)
-            
-            logging.info(f"[Job {job_id}] Filtrage des auto-liens terminé. {len(suggestions_df) - len(filtered_df)} auto-liens supprimés.")
-        except Exception as filter_err:
-            logging.error(f"[Job {job_id}] Erreur lors du filtrage des auto-liens: {str(filter_err)}", exc_info=True)
-            # Ne pas interrompre le processus en cas d'erreur lors du filtrage
+            result_file = await seo_analyzer.analyze(
+                content_file=content_file,
+                links_file=links_file,
+                gsc_file=gsc_file,
+                rules=linking_rules,
+                min_similarity=float(config.get("minSimilarity", 0.2)),
+                anchor_suggestions=int(config.get("anchorSuggestions", 3)),
+                priority_urls=priority_urls,
+                priority_strict=priority_urls_strict
+            )
+            logging.info(f"[Job {job_id}] Analyse terminée par seo_analyzer.analyze. Fichier résultat: {result_file}")
+        
+            # Filtrer les auto-liens dans le fichier de résultats
+            try:
+                logging.info(f"[Job {job_id}] Filtrage des auto-liens dans le fichier de résultats...")
+                # Charger le fichier Excel
+                suggestions_df = pd.read_excel(result_file, sheet_name="Suggestions")
+                
+                # Appliquer le filtre pour supprimer les auto-liens
+                filtered_df = filter_self_links(suggestions_df)
+                
+                # Sauvegarder le fichier filtré
+                with pd.ExcelWriter(result_file, engine='openpyxl') as writer:
+                    filtered_df.to_excel(writer, sheet_name='Suggestions', index=False)
+                
+                logging.info(f"[Job {job_id}] Filtrage des auto-liens terminé. {len(suggestions_df) - len(filtered_df)} auto-liens supprimés.")
+            except Exception as filter_err:
+                logging.error(f"[Job {job_id}] Erreur lors du filtrage des auto-liens: {str(filter_err)}", exc_info=True)
+                # Ne pas interrompre le processus en cas d'erreur lors du filtrage
 
-        # Mettre à jour le statut de la tâche vers "completed"
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["message"] = "Analyse terminée avec succès."
-        job["end_time"] = datetime.now().isoformat()
-        job["result_file"] = result_file
-
-        # Notifier les clients connectés de la fin
-        await manager.send_job_update(job_id, job)
+            # Mettre à jour le statut de la tâche
+            job["status"] = "completed"
+            job["message"] = "Analyse terminée avec succès"
+            job["end_time"] = datetime.now().isoformat()
+            job["result_file"] = result_file
+            
+            # Notifier les clients connectés
+            await manager.send_job_update(job_id, job)
+        except Exception as analyze_error:
+            error_msg = f"Erreur lors de l'analyse: {str(analyze_error)}"
+            logging.error(f"[Job {job_id}] {error_msg}")
+            logging.error(f"[Job {job_id}] Traceback: {traceback.format_exc()}")
+            
+            # Journaliser des informations supplémentaires sur les fichiers
+            if content_file:
+                logging.error(f"[Job {job_id}] Détails du fichier de contenu: {content_file}, existe: {os.path.exists(content_file)}, taille: {os.path.getsize(content_file) if os.path.exists(content_file) else 'N/A'} octets")
+            if gsc_file:
+                logging.error(f"[Job {job_id}] Détails du fichier GSC: {gsc_file}, existe: {os.path.exists(gsc_file)}, taille: {os.path.getsize(gsc_file) if os.path.exists(gsc_file) else 'N/A'} octets")
+            
+            # Mettre à jour le statut de la tâche
+            job["status"] = "failed"
+            job["message"] = error_msg
+            job["end_time"] = datetime.now().isoformat()
+            
+            # Notifier les clients connectés
+            await manager.send_job_update(job_id, job)
 
     except Exception as e:
         # Journalisation détaillée de l'erreur
@@ -1862,9 +2067,63 @@ async def save_uploaded_file(file: UploadFile, folder: str) -> str:
     logging.info(f"Fichier sauvegardé : {file_path}. Durée totale sauvegarde: {total_duration:.2f}s")
     return file_path
 
+# Fonction pour valider un fichier CSV
+def validate_csv_file(file_path: str, required_columns: List[str], case_sensitive: bool = False) -> dict:
+    """Valide qu'un fichier CSV contient les colonnes requises en lisant seulement les en-têtes.
+    
+    Args:
+        file_path: Chemin vers le fichier CSV à valider
+        required_columns: Liste des colonnes requises
+        case_sensitive: Si True, la validation est sensible à la casse des noms de colonnes
+    """
+    try:
+        # Ouvrir le fichier CSV et lire la première ligne (en-têtes)
+        with open(file_path, 'r', encoding='utf-8') as csv_file:
+            # Lire la première ligne pour obtenir les en-têtes
+            first_line = csv_file.readline().strip()
+            if not first_line:
+                return {"valid": False, "message": "Le fichier CSV est vide ou la première ligne (en-têtes) n'a pas pu être lue."}
+            
+            # Diviser la ligne en colonnes
+            headers = [h.strip() for h in first_line.split(',')]
+            
+            # Si la validation n'est pas sensible à la casse, convertir tout en minuscules pour la comparaison
+            if not case_sensitive:
+                headers_for_comparison = [h.lower() for h in headers]
+                required_columns_for_comparison = [col.lower() for col in required_columns]
+            else:
+                headers_for_comparison = headers
+                required_columns_for_comparison = required_columns
+            
+            missing_columns = []
+            for i, column in enumerate(required_columns_for_comparison):
+                if column not in headers_for_comparison:
+                    missing_columns.append(required_columns[i])  # Utiliser le nom original pour le message d'erreur
+                    
+            if missing_columns:
+                col_str = ", ".join([f"'{col}'" for col in missing_columns])
+                message = f"La colonne {'s' if len(missing_columns) > 1 else ''} {col_str} {'sont requises mais non trouvées' if len(missing_columns) > 1 else 'est requise mais non trouvée'} dans le fichier."
+                return {"valid": False, "message": message}
+            
+            return {"valid": True, "message": "Les colonnes requises sont présentes."}
+    
+    except FileNotFoundError:
+        logging.error(f"validate_csv_file: Fichier non trouvé - {file_path}")
+        return {"valid": False, "message": f"Erreur interne: Le fichier '{os.path.basename(file_path)}' n'a pas été trouvé pour validation."}
+    except Exception as e:
+        # Capturer d'autres erreurs potentielles
+        logging.error(f"Erreur lors de la validation CSV pour {file_path}: {e}", exc_info=True)
+        return {"valid": False, "message": f"Impossible de valider le fichier CSV '{os.path.basename(file_path)}'. Erreur: {str(e)}"}
+
 # Fonction pour valider un fichier Excel (version optimisée lisant uniquement les en-têtes)
-def validate_excel_file(file_path: str, required_columns: List[str]) -> dict:
-    """Valide qu'un fichier Excel contient les colonnes requises en lisant seulement les en-têtes."""
+def validate_excel_file(file_path: str, required_columns: List[str], case_sensitive: bool = False) -> dict:
+    """Valide qu'un fichier Excel contient les colonnes requises en lisant seulement les en-têtes.
+    
+    Args:
+        file_path: Chemin vers le fichier Excel à valider
+        required_columns: Liste des colonnes requises
+        case_sensitive: Si True, la validation est sensible à la casse des noms de colonnes
+    """
     try:
         # Ouvrir le classeur en mode lecture seule et data_only pour obtenir les valeurs calculées
         workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
@@ -1879,10 +2138,18 @@ def validate_excel_file(file_path: str, required_columns: List[str]) -> dict:
         # Nettoyer les noms d'en-têtes (supprimer espaces superflus, convertir en string au cas où)
         headers = [str(cell).strip() if cell is not None else "" for cell in header_row]
         
+        # Si la validation n'est pas sensible à la casse, convertir tout en minuscules pour la comparaison
+        if not case_sensitive:
+            headers_for_comparison = [h.lower() for h in headers]
+            required_columns_for_comparison = [col.lower() for col in required_columns]
+        else:
+            headers_for_comparison = headers
+            required_columns_for_comparison = required_columns
+        
         missing_columns = []
-        for column in required_columns:
-            if column not in headers:
-                missing_columns.append(column)
+        for i, column in enumerate(required_columns_for_comparison):
+            if column not in headers_for_comparison:
+                missing_columns.append(required_columns[i])  # Utiliser le nom original pour le message d'erreur
                 
         if missing_columns:
             col_str = ", ".join([f"'{col}'" for col in missing_columns])
@@ -1949,13 +2216,23 @@ async def run_crawl(job_id: str):
         # Initialisation du crawler
         segment_rules_file = job["params"].get("segment_rules_file", "app/data/segment_rules.json")
         exclude_patterns = job["params"].get("exclude_patterns", [])
+        exclude_from_linking_patterns = job["params"].get("exclude_from_linking_patterns", [])
         
         # Journaliser les patterns d'exclusion
         if exclude_patterns:
-            logging.info(f"Patterns d'URL exclus: {exclude_patterns}")
+            logging.info(f"Patterns d'URL exclus du crawl: {exclude_patterns}")
             await manager.send_job_update(job_id, {
                 "type": "log",
-                "message": f"Patterns d'URL exclus: {', '.join(exclude_patterns)}",
+                "message": f"Patterns d'URL exclus du crawl: {', '.join(exclude_patterns)}",
+                "level": "info"
+            })
+            
+        # Journaliser les patterns d'exclusion du plan de maillage
+        if exclude_from_linking_patterns:
+            logging.info(f"Patterns d'URL exclus du plan de maillage: {exclude_from_linking_patterns}")
+            await manager.send_job_update(job_id, {
+                "type": "log",
+                "message": f"Patterns d'URL exclus du plan de maillage: {', '.join(exclude_from_linking_patterns)}",
                 "level": "info"
             })
         
@@ -1966,6 +2243,7 @@ async def run_crawl(job_id: str):
             crawl_delay=crawl_delay,
             segment_rules_file=segment_rules_file,
             exclude_patterns=exclude_patterns,
+            exclude_from_linking_patterns=exclude_from_linking_patterns,
             progress_callback=progress_callback
         )
         

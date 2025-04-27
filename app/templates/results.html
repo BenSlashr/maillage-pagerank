@@ -1,134 +1,120 @@
 <!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Résultats - SEO Internal Linking Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        .results-section {
-            background-color: #f8f9fa;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            margin-bottom: 2rem;
-        }
-        .footer {
-            margin-top: 3rem;
-            padding: 2rem 0;
-            background-color: #f8f9fa;
-        }
-        .table-container {
-            overflow-x: auto;
-        }
-        .similarity-badge {
-            width: 60px;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/">SEO Internal Linking Tool</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Accueil</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/analysis">Analyse</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/rules">Règles</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/crawler">Crawler</a>
-                    </li>
-                </ul>
+{% extends "layout.html" %}
+
+{% block title %}Résultats - SEO Internal Linking Tool{% endblock %}
+
+{% block styles %}
+<style>
+    .table-container {
+        overflow-x: auto;
+    }
+    .similarity-badge {
+        width: 60px;
+        text-align: center;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4" x-data="resultsApp('{{ job_id }}')">
-        <h1 class="mb-4">Résultats de l'analyse</h1>
-        
-        <div x-show="loading" class="d-flex justify-content-center my-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Chargement...</span>
+    <div x-data="resultsApp('{{ job_id }}')">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">Résultats de l'analyse</h1>
+            <div class="d-flex">
+                <a href="/" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-house me-1"></i> Retour à l'accueil
+                </a>
+                <a href="/analysis" class="btn btn-outline-primary">
+                    <i class="bi bi-plus-circle me-1"></i> Nouvelle analyse
+                </a>
             </div>
         </div>
+        
+        <!-- Conteneur pour le spinner qui sera inséré dynamiquement -->
+        <div id="spinner-container" class="my-5"></div>
         
         <div x-show="error" class="alert alert-danger" x-text="error"></div>
         
         <div x-show="!loading && !error">
-            <div class="results-section">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="mb-0">Suggestions de maillage interne</h3>
-                    <div class="btn-group">
-                        <a :href="`/pagerank-report/${jobId}`" class="btn btn-primary me-2">
-                            <i class="bi bi-bar-chart-line me-1"></i> Rapport PageRank
-                        </a>
-                        <a :href="`/api/results/${jobId}?format=xlsx`" class="btn btn-success" download>
-                            <i class="bi bi-file-earmark-excel me-1"></i> Télécharger (Excel)
-                        </a>
+            <div class="card shadow rounded-lg mb-5">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><i class="bi bi-link-45deg me-2"></i>Suggestions de maillage interne</h3>
+                        <div class="btn-group">
+                            <a :href="`/pagerank-report/${jobId}`" class="btn btn-primary me-2">
+                                <i class="bi bi-file-earmark-text me-1"></i> Rapport PageRank
+                            </a>
+                            <a :href="`/api/download_excel/${jobId}`" class="btn btn-success me-2">
+                                <i class="bi bi-file-earmark-excel me-1"></i> Télécharger Excel
+                            </a>
+                            <div class="dropdown">
+                                <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-download me-1"></i> Télécharger
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
+                                    <li><a class="dropdown-item" :href="`/api/download_content_file/${jobId}`"><i class="bi bi-file-earmark-text me-2"></i>Fichier de contenu</a></li>
+                                    <li><a class="dropdown-item" :href="`/api/download_links_file/${jobId}`"><i class="bi bi-link me-2"></i>Fichier de liens</a></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="mb-3">
-                    <label for="filterType" class="form-label">Filtrer par type de page source</label>
-                    <select class="form-select" id="filterType" x-model="filterType">
-                        <option value="">Tous les types</option>
-                        <template x-for="type in uniqueTypes" :key="type">
-                            <option :value="type" x-text="type"></option>
-                        </template>
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="searchUrl" class="form-label">Rechercher une URL</label>
-                    <input type="text" class="form-control" id="searchUrl" placeholder="Entrez une URL ou un mot-clé" x-model="searchUrl">
-                </div>
-                
-                <div class="table-container">
-                    <table class="table table-striped table-hover">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="filterType" class="form-label">Filtrer par type de page source</label>
+                        <select class="form-select" id="filterType" x-model="filterType" @change="applyFilters()">
+                            <option value="">Tous les types</option>
+                            <template x-for="type in uniqueTypes" :key="type">
+                                <option :value="type" x-text="type"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Rechercher une URL" x-model="searchQuery" @input="applyFilters()">
+                            <button class="btn btn-outline-secondary" type="button" @click="searchQuery = ''; applyFilters()">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Filtrez les suggestions par URL source ou destination</div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>URL Source</th>
-                                <th>Type</th>
-                                <th>URL Destination</th>
-                                <th>Similarité</th>
-                                <th>Suggestions d'ancres</th>
+                                <th class="fw-semibold">URL Source</th>
+                                <th class="fw-semibold">URL Destination</th>
+                                <th class="fw-semibold text-center">Similarité</th>
+                                <th class="fw-semibold">Segments</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="(suggestion, index) in filteredSuggestions" :key="index">
                                 <tr>
                                     <td>
-                                        <a :href="suggestion.source_url" target="_blank" x-text="truncateUrl(suggestion.source_url)"></a>
-                                    </td>
-                                    <td x-text="suggestion.source_type"></td>
-                                    <td>
-                                        <a :href="suggestion.target_url" target="_blank" x-text="truncateUrl(suggestion.target_url)"></a>
+                                        <div class="text-truncate" style="max-width: 300px;" x-text="suggestion.source_url" :title="suggestion.source_url"></div>
                                     </td>
                                     <td>
-                                        <span class="badge similarity-badge" :class="getSimilarityBadgeClass(suggestion.similarity)" x-text="(suggestion.similarity * 100).toFixed(0) + '%'"></span>
+                                        <div class="text-truncate" style="max-width: 300px;" x-text="suggestion.target_url" :title="suggestion.target_url"></div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge similarity-badge" :class="{
+                                            'bg-success': suggestion.similarity >= 0.7,
+                                            'bg-primary': suggestion.similarity >= 0.5 && suggestion.similarity < 0.7,
+                                            'bg-warning': suggestion.similarity >= 0.3 && suggestion.similarity < 0.5,
+                                            'bg-secondary': suggestion.similarity < 0.3
+                                        }" x-text="suggestion.similarity.toFixed(2)"></span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" @click="toggleAnchors(index)">
-                                            <span x-show="!expandedAnchors.includes(index)">Afficher</span>
-                                            <span x-show="expandedAnchors.includes(index)">Masquer</span>
-                                        </button>
-                                        <div x-show="expandedAnchors.includes(index)" class="mt-2">
-                                            <ul class="list-group">
-                                                <template x-for="(anchor, i) in suggestion.anchor_suggestions.split(', ')" :key="i">
-                                                    <li class="list-group-item" x-text="anchor"></li>
-                                                </template>
-                                            </ul>
-                                        </div>
+                                        <template x-for="(segment, index) in suggestion.segments" :key="index">
+                                            <span class="badge bg-info me-1 mb-1" x-text="segment"></span>
+                                        </template>
                                     </td>
                                 </tr>
                             </template>
@@ -151,31 +137,48 @@
                 </div>
             </div>
             
-            <div class="results-section">
-                <h3>Statistiques</h3>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Total des suggestions</h5>
-                                <p class="card-text fs-1 text-center" x-text="suggestions.length"></p>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="display-6 text-primary mb-3">
+                                <i class="bi bi-file-earmark-text"></i>
                             </div>
+                            <h5 class="card-title">Pages analysées</h5>
+                            <p class="card-text display-4 fw-bold" x-text="stats.total_pages || 0"></p>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Similarité moyenne</h5>
-                                <p class="card-text fs-1 text-center" x-text="(averageSimilarity * 100).toFixed(1) + '%'"></p>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="display-6 text-primary mb-3">
+                                <i class="bi bi-link"></i>
                             </div>
+                            <h5 class="card-title">Liens existants</h5>
+                            <p class="card-text display-4 fw-bold" x-text="stats.existing_links || 0"></p>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Types de pages</h5>
-                                <p class="card-text fs-1 text-center" x-text="uniqueTypes.length"></p>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="display-6 text-success mb-3">
+                                <i class="bi bi-lightbulb"></i>
                             </div>
+                            <h5 class="card-title">Suggestions</h5>
+                            <p class="card-text display-4 fw-bold" x-text="stats.suggested_links || 0"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="display-6 text-primary mb-3">
+                                <i class="bi bi-percent"></i>
+                            </div>
+                            <h5 class="card-title">Similarité moyenne</h5>
+                            <p class="card-text display-4 fw-bold" x-text="(stats.avg_similarity || 0).toFixed(2)"></p>
                         </div>
                     </div>
                 </div>
@@ -208,19 +211,43 @@
                 suggestions: [],
                 filteredSuggestions: [],
                 filterType: '',
-                searchUrl: '',
+                searchQuery: '',
                 expandedAnchors: [],
                 currentPage: 1,
                 itemsPerPage: 50,
                 totalPages: 1,
                 uniqueTypes: [],
                 averageSimilarity: 0,
+                stats: {
+                    total_pages: 0,
+                    existing_links: 0,
+                    suggested_links: 0,
+                    avg_similarity: 0
+                },
                 
                 init() {
+                    // Créer et insérer le spinner dynamiquement
+                    const spinnerContainer = document.getElementById('spinner-container');
+                    if (spinnerContainer) {
+                        spinnerContainer.innerHTML = `
+                            <div id="loading-spinner" class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Chargement...</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
                     this.fetchResults();
                 },
                 
                 fetchResults() {
+                    // Réinitialiser l'état de chargement
+                    this.loading = true;
+                    this.error = null;
+                    
+                    // Rien à faire ici, le spinner est déjà créé et visible
+                    
                     fetch(`/api/job/${this.jobId}`)
                         .then(response => {
                             if (!response.ok) {
@@ -232,19 +259,23 @@
                             if (data.status !== 'completed') {
                                 this.error = 'L\'analyse n\'est pas encore terminée';
                                 this.loading = false;
-                                return;
+                                return null; // Retourner null pour arrêter la chaîne de promesses
                             }
                             
                             // Charger les résultats
                             return fetch(`/api/results/${this.jobId}?format=json`);
                         })
                         .then(response => {
-                            if (!response || !response.ok) {
+                            if (!response) return; // Si null, arrêter la chaîne
+                            
+                            if (!response.ok) {
                                 throw new Error('Impossible de récupérer les résultats');
                             }
                             return response.json();
                         })
                         .then(data => {
+                            if (!data) return; // Si null, arrêter la chaîne
+                            
                             // Vérifier si les données sont dans une propriété results
                             this.suggestions = data.results || data;
                             
@@ -253,13 +284,20 @@
                             
                             // Appliquer les filtres initiaux
                             this.applyFilters();
-                            
-                            this.loading = false;
                         })
                         .catch(error => {
                             console.error('Erreur lors du chargement des résultats:', error);
                             this.error = error.message;
+                        })
+                        .finally(() => {
+                            // Toujours mettre loading à false à la fin, que ce soit succès ou échec
                             this.loading = false;
+                            
+                            // Vider complètement le conteneur du spinner
+                            const spinnerContainer = document.getElementById('spinner-container');
+                            if (spinnerContainer) {
+                                spinnerContainer.innerHTML = '';
+                            }
                         });
                 },
                 
@@ -273,6 +311,12 @@
                     
                     // Calculer le nombre total de pages
                     this.totalPages = Math.ceil(this.suggestions.length / this.itemsPerPage);
+                    
+                    // Calculer les statistiques
+                    this.stats.total_pages = this.suggestions.length;
+                    this.stats.existing_links = this.suggestions.reduce((acc, s) => acc + s.existing_links, 0);
+                    this.stats.suggested_links = this.suggestions.reduce((acc, s) => acc + s.suggested_links, 0);
+                    this.stats.avg_similarity = this.averageSimilarity;
                 },
                 
                 applyFilters() {
@@ -283,8 +327,8 @@
                     }
                     
                     // Filtrer par recherche
-                    if (this.searchUrl) {
-                        const searchLower = this.searchUrl.toLowerCase();
+                    if (this.searchQuery) {
+                        const searchLower = this.searchQuery.toLowerCase();
                         filtered = filtered.filter(s => 
                             s.source_url.toLowerCase().includes(searchLower) || 
                             s.target_url.toLowerCase().includes(searchLower)
@@ -318,8 +362,8 @@
                 
                 getSimilarityBadgeClass(similarity) {
                     if (similarity >= 0.7) return 'bg-success';
-                    if (similarity >= 0.4) return 'bg-primary';
-                    if (similarity >= 0.2) return 'bg-warning';
+                    if (similarity >= 0.5) return 'bg-primary';
+                    if (similarity >= 0.3) return 'bg-warning';
                     return 'bg-secondary';
                 }
             };
@@ -328,5 +372,15 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-</body>
-</html>
+    
+    <!-- Script de sécurité pour masquer le spinner après un délai -->
+    <script>
+        // S'assurer que le spinner est masqué après un délai raisonnable, même en cas de problème
+        setTimeout(function() {
+            const spinnerContainer = document.getElementById('spinner-container');
+            if (spinnerContainer) {
+                spinnerContainer.innerHTML = '';
+            }
+        }, 5000); // 5 secondes maximum d'affichage
+    </script>
+{% endblock %}

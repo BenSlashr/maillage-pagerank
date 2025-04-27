@@ -16,8 +16,21 @@ const cyConfig = {
         },
         edges: {
             existing: '#6c757d',
-            suggested: '#28a745'
-        }
+            suggested: '#28a745',
+            frequent: '#cccccc' // Couleur plus claire pour les liens fréquents
+        },
+        depth: [
+            '#3366cc', // Niveau 0 (racine)
+            '#dc3912', // Niveau 1
+            '#ff9900', // Niveau 2
+            '#109618', // Niveau 3
+            '#990099', // Niveau 4
+            '#0099c6', // Niveau 5
+            '#dd4477', // Niveau 6
+            '#66aa00', // Niveau 7
+            '#b82e2e', // Niveau 8
+            '#316395'  // Niveau 9+
+        ]
     },
     // Taille des nœuds
     nodeSize: {
@@ -52,11 +65,15 @@ let cyOptimizedNetwork = null;
 let graphData = null;
 let pagerankData = null;
 let visualizationConfig = null;
+let depthData = null;
 
 // Configuration pour le filtrage des nœuds
 let nodeDisplayConfig = {
     maxNodes: 100,  // Nombre maximum de nœuds à afficher par défaut
-    filterBy: 'pagerank'  // Critère de filtrage ('pagerank', 'links', 'all')
+    filterBy: 'pagerank',  // Critère de filtrage ('pagerank', 'links', 'all')
+    maxDepth: null,  // Profondeur maximale à afficher (null = toutes)
+    hideFrequentLinks: true,  // Masquer les liens fréquents (menu/footer)
+    colorByDepth: true  // Colorer les nœuds par profondeur
 };
 
 /**
@@ -75,12 +92,42 @@ function initCytoscapeVisualization(data) {
     
     graphData = data.graph;
     pagerankData = data.pagerank;
+    depthData = data.depth_data || null;
     visualizationConfig = data.config || {
         use_weighted_pagerank: false,
         content_links_only: false,
         alpha: 0.5,
-        beta: 0.5
+        beta: 0.5,
+        filter_frequent_links: true, // Activé par défaut
+        frequent_links_threshold: 80.0,
+        root_url: null
     };
+    
+    // Forcer l'activation des options par défaut
+    visualizationConfig.filter_frequent_links = true;
+    nodeDisplayConfig.colorByDepth = true;
+    nodeDisplayConfig.hideFrequentLinks = true;
+    
+    // Configurer les liens avec l'ID du job
+    const backToResultsLink = document.getElementById('back-to-results');
+    if (backToResultsLink) {
+        const jobId = window.location.pathname.split('/').pop();
+        backToResultsLink.href = `/results/${jobId}`;
+    }
+    
+    // Initialiser les contrôles de filtrage par profondeur si les données sont disponibles
+    if (depthData) {
+        initDepthControls(depthData.max_depth);
+    }
+    
+    // D'abord configurer les options par défaut
+    setupDefaultOptions();
+    
+    // Ensuite mettre à jour les autres contrôles
+    updateControlsFromConfig();
+    
+    // Ajouter les événements pour les options avancées
+    setupAdvancedOptions();
     
     // Vérifier que les donnœuds sont disponibles
     if (!graphData.nodes || graphData.nodes.length === 0) {
@@ -111,6 +158,28 @@ function initCytoscapeVisualization(data) {
     
     // Afficher les statistiques
     displayNetworkStats();
+    
+    // Afficher les statistiques de profondeur si disponibles
+    if (depthData) {
+        displayDepthStats();
+    }
+    
+    // Masquer explicitement tous les spinners après l'initialisation complète
+    hideAllSpinners();
+}
+
+/**
+ * Masque tous les spinners de chargement
+ */
+function hideAllSpinners() {
+    // Masquer les spinners principaux
+    const spinners = ['cy-current-spinner', 'cy-optimized-spinner'];
+    spinners.forEach(spinnerId => {
+        const spinner = document.getElementById(spinnerId);
+        if (spinner) {
+            spinner.style.display = 'none';
+        }
+    });
 }
 
 /**
@@ -215,7 +284,23 @@ function initCytoscapeNetwork(containerId, mode) {
     // Ajouter des événements
     cy.on('tap', 'node', function(evt) {
         const node = evt.target;
-        showNodeDetails(node.data());
+        const event = evt.originalEvent;
+        console.log('Noeud cliqué:', node.id(), 'Position:', event.pageX, event.pageY);
+        showNodeDetails(node.data(), event);
+    });
+    
+    // Ajouter un événement de clic direct sur le conteneur pour débogage
+    container.addEventListener('click', function(event) {
+        console.log('Clic sur le conteneur:', event.pageX, event.pageY);
+    });
+    
+    // Masquer la bulle de détails lors du déplacement du graphe
+    cy.on('pan', function() {
+        hideNodeTooltip();
+    });
+    
+    cy.on('zoom', function() {
+        hideNodeTooltip();
     });
     
     // Stocker l'instance
@@ -239,8 +324,18 @@ function initCytoscapeNetwork(containerId, mode) {
 function prepareCytoscapeElements(mode) {
     if (!graphData || !graphData.nodes) return [];
     
-    // Filtrer les nœuds par PageRank
+    // Filtrer les nœuds par PageRank et profondeur
     let nodes = [...graphData.nodes];
+    
+    // Filtrer par profondeur si configuré
+    if (nodeDisplayConfig.maxDepth !== null && depthData) {
+        nodes = nodes.filter(node => {
+            const depth = node.metrics && node.metrics.depth !== undefined ? node.metrics.depth : Infinity;
+            return depth <= nodeDisplayConfig.maxDepth;
+        });
+    }
+    
+    // Filtrer par PageRank si nécessaire
     if (nodeDisplayConfig.maxNodes > 0 && nodeDisplayConfig.maxNodes < nodes.length) {
         // Ajouter le PageRank à chaque nœud
         nodes = nodes.map(node => {
@@ -270,9 +365,16 @@ function prepareCytoscapeElements(mode) {
             );
         }
         
-        // Déterminer la couleur en fonction du type
+        // Déterminer la couleur en fonction du type ou de la profondeur
         let color = cyConfig.colors.nodes.default;
-        if (node.type in cyConfig.colors.nodes) {
+        
+        if (nodeDisplayConfig.colorByDepth && node.metrics && node.metrics.depth !== undefined) {
+            // Colorer par profondeur
+            const depth = node.metrics.depth;
+            const colorIndex = Math.min(depth, cyConfig.colors.depth.length - 1);
+            color = cyConfig.colors.depth[colorIndex];
+        } else if (node.type in cyConfig.colors.nodes) {
+            // Colorer par type
             color = cyConfig.colors.nodes[node.type];
         }
         
@@ -294,13 +396,22 @@ function prepareCytoscapeElements(mode) {
     // Ajouter les liens existants (uniquement entre nœuds visibles)
     if (graphData.edges.current) {
         const currentEdges = graphData.edges.current
-            .filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+            .filter(edge => {
+                // Filtrer par visibilité des nœuds
+                const nodesVisible = nodeIds.has(edge.source) && nodeIds.has(edge.target);
+                
+                // Filtrer les liens fréquents si demandé
+                const frequentLinkVisible = !nodeDisplayConfig.hideFrequentLinks || !edge.frequent;
+                
+                return nodesVisible && frequentLinkVisible;
+            })
             .map(edge => ({
                 data: {
                     id: `e-${edge.source}-${edge.target}`,
                     source: edge.source,
                     target: edge.target,
-                    color: cyConfig.colors.edges.existing,
+                    color: edge.frequent ? cyConfig.colors.edges.frequent : cyConfig.colors.edges.existing,
+                    frequent: edge.frequent || false,
                     originalData: edge
                 }
             }));
@@ -367,22 +478,31 @@ function addZoomControls(containerId, cy) {
 }
 
 /**
- * Affiche les détails d'un nœud
+ * Affiche les détails d'un nœud dans une bulle à côté de la souris
  * @param {Object} nodeData - Données du nœud
+ * @param {Object} event - Événement de clic (pour la position)
  */
-function showNodeDetails(nodeData) {
-    const detailsContainer = document.getElementById('node-details');
-    if (!detailsContainer) return;
+function showNodeDetails(nodeData, event) {
+    // Masquer d'abord toute bulle existante
+    hideNodeTooltip();
+    
+    const tooltip = document.getElementById('node-tooltip');
+    if (!tooltip) {
+        console.error('Conteneur de bulle introuvable!');
+        return;
+    }
+    
+    console.log('Affichage des détails pour:', nodeData.id);
     
     // Préparer les détails de PageRank
     let pagerankDetails = '';
     if (pagerankData && pagerankData.current && nodeData.id in pagerankData.current) {
         const current = pagerankData.current[nodeData.id];
         pagerankDetails += `
-            <div class="mb-3">
-                <h6>PageRank actuel</h6>
-                <p>Score: ${current.pagerank.toFixed(6)}</p>
-                <p>Rang: ${current.rank} sur ${Object.keys(pagerankData.current).length}</p>
+            <div class="mb-2">
+                <h6 class="mb-1">PageRank</h6>
+                <div><strong>Score:</strong> ${current.pagerank.toFixed(6)}</div>
+                <div><strong>Rang:</strong> ${current.rank} sur ${Object.keys(pagerankData.current).length}</div>
             </div>
         `;
         
@@ -400,40 +520,97 @@ function showNodeDetails(nodeData) {
                                  improvement.rank_change < 0 ? `${improvement.rank_change}` : '0';
             
             pagerankDetails += `
-                <div class="mb-3">
-                    <h6>PageRank optimisé</h6>
-                    <p>Score: ${optimized.pagerank.toFixed(6)}</p>
-                    <p>Rang: ${optimized.rank} sur ${Object.keys(pagerankData.optimized).length}</p>
-                    <p>Amélioration: <span class="${improvementClass}">${improvement.percentage.toFixed(2)}%</span></p>
-                    <p>Changement de rang: <span class="${rankChangeClass}">${rankChangeText}</span></p>
+                <div class="mt-2">
+                    <h6 class="mb-1">Optimisation</h6>
+                    <div><strong>Amélioration:</strong> <span class="${improvementClass}">${improvement.percentage.toFixed(2)}%</span></div>
+                    <div><strong>Changement de rang:</strong> <span class="${rankChangeClass}">${rankChangeText}</span></div>
                 </div>
             `;
         }
     }
     
-    // Afficher les détails
-    detailsContainer.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Détails de la page</h5>
-            </div>
-            <div class="card-body">
-                <h6 class="mb-3">${nodeData.id}</h6>
-                
-                <div class="mb-3">
-                    <strong>Type:</strong> ${nodeData.type || 'Non spécifié'}
-                </div>
-                
-                ${pagerankDetails}
-                
-                <div class="mt-3">
-                    <button class="btn btn-sm btn-primary" onclick="focusOnNode('${nodeData.id}')">
-                        Centrer sur cette page
-                    </button>
-                </div>
-            </div>
+    // Afficher les informations de profondeur si disponibles
+    let depthInfo = '';
+    
+    // Récupérer la profondeur depuis les différentes structures possibles
+    let depth;
+    
+    // Cas 1: Données directement dans nodeData.data.originalData.metrics (structure Cytoscape)
+    if (nodeData.data && nodeData.data.originalData && nodeData.data.originalData.metrics && nodeData.data.originalData.metrics.depth !== undefined) {
+        depth = nodeData.data.originalData.metrics.depth;
+    }
+    // Cas 2: Données dans nodeData.data.metrics
+    else if (nodeData.data && nodeData.data.metrics && nodeData.data.metrics.depth !== undefined) {
+        depth = nodeData.data.metrics.depth;
+    }
+    // Cas 3: Données directement dans nodeData.metrics
+    else if (nodeData.metrics && nodeData.metrics.depth !== undefined) {
+        depth = nodeData.metrics.depth;
+    }
+    
+    // Afficher la profondeur si elle a été trouvée
+    if (depth !== undefined) {
+        depthInfo = `<div class="mt-2"><strong>Profondeur:</strong> ${depth}</div>`;
+    }
+    
+    // Extraire le nom de la page à partir de l'URL
+    const pageName = nodeData.id.split('/').pop() || nodeData.id;
+    
+    // Afficher les détails dans la bulle
+    tooltip.innerHTML = `
+        <h5>${pageName}</h5>
+        <div class="url">${nodeData.id}</div>
+        <div class="mt-2">
+            <span class="badge bg-secondary">${nodeData.type || 'Page'}</span>
+        </div>
+        ${depthInfo}
+        ${pagerankDetails}
+        <div class="mt-3">
+            <button class="btn btn-sm btn-primary" onclick="focusOnNode('${nodeData.id}'); hideNodeTooltip();">
+                Centrer sur cette page
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="hideNodeTooltip();">
+                Fermer
+            </button>
         </div>
     `;
+    
+    // Positionner directement la bulle
+    const x = event.pageX + 20;
+    const y = event.pageY - 10;
+    
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+    tooltip.style.display = 'block';
+    
+    // Ajouter un événement pour fermer la bulle en cliquant ailleurs
+    setTimeout(() => {
+        document.addEventListener('click', hideNodeTooltipOnClickOutside);
+    }, 100);
+}
+
+/**
+ * Masque la bulle de détails
+ */
+function hideNodeTooltip() {
+    const tooltip = document.getElementById('node-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+    
+    // Retirer l'événement de fermeture
+    document.removeEventListener('click', hideNodeTooltipOnClickOutside);
+}
+
+/**
+ * Ferme la bulle de détails si on clique en dehors
+ * @param {Event} event - Événement de clic
+ */
+function hideNodeTooltipOnClickOutside(event) {
+    const tooltip = document.getElementById('node-tooltip');
+    if (tooltip && !tooltip.contains(event.target)) {
+        hideNodeTooltip();
+    }
 }
 
 /**
@@ -590,6 +767,15 @@ function changeLayout(layoutName) {
                 spacingFactor: 1.5
             };
             break;
+        case 'depth':
+            // Layout hiérarchique par niveau de profondeur
+            layoutConfig = {
+                name: 'breadthfirst',
+                directed: true,
+                spacingFactor: 1.5,
+                roots: depthData ? findRootNodes() : undefined
+            };
+            break;
     }
     
     // Appliquer le nouveau layout
@@ -608,7 +794,254 @@ function changeLayout(layoutName) {
     }
 }
 
+/**
+ * Trouve les nœuds racines (profondeur 0) pour le layout hiérarchique
+ */
+function findRootNodes() {
+    if (!depthData || !graphData) return [];
+    
+    const rootNodes = [];
+    for (const node of graphData.nodes) {
+        if (node.metrics && node.metrics.depth === 0) {
+            rootNodes.push(node.id);
+        }
+    }
+    
+    return rootNodes;
+}
+
+/**
+ * Initialise les contrôles de filtrage par profondeur
+ */
+function initDepthControls(maxDepth) {
+    const depthControlsDiv = document.getElementById('depth-controls');
+    if (!depthControlsDiv) return;
+    
+    // Créer le slider de profondeur
+    depthControlsDiv.innerHTML = `
+        <div class="card">
+            <div class="card-header py-2">
+                <h5 class="mb-0">Filtrage par profondeur</h5>
+            </div>
+            <div class="card-body py-2">
+                <div class="mb-2">
+                    <label for="depth-slider" class="form-label mb-0">Profondeur maximale: <span id="depth-value">Toutes</span></label>
+                    <input type="range" class="form-range" id="depth-slider" min="0" max="${maxDepth}" step="1" value="${maxDepth}">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Ajouter les événements
+    const depthSlider = document.getElementById('depth-slider');
+    const depthValue = document.getElementById('depth-value');
+    
+    if (depthSlider) {
+        depthSlider.addEventListener('input', function() {
+            const value = parseInt(this.value);
+            if (value === maxDepth) {
+                depthValue.textContent = 'Toutes';
+                nodeDisplayConfig.maxDepth = null;
+            } else {
+                depthValue.textContent = value;
+                nodeDisplayConfig.maxDepth = value;
+            }
+            updateVisualization();
+        });
+    }
+}
+
+/**
+ * Met à jour la visualisation en fonction des filtres
+ */
+function updateVisualization() {
+    // Mettre à jour les visualisations
+    if (cyCurrentNetwork) {
+        const elements = prepareCytoscapeElements('current');
+        cyCurrentNetwork.elements().remove();
+        cyCurrentNetwork.add(elements);
+        cyCurrentNetwork.layout(cyConfig.layout).run();
+    }
+    
+    if (cyOptimizedNetwork) {
+        const elements = prepareCytoscapeElements('optimized');
+        cyOptimizedNetwork.elements().remove();
+        cyOptimizedNetwork.add(elements);
+        cyOptimizedNetwork.layout(cyConfig.layout).run();
+    }
+    
+    // Mettre à jour les statistiques
+    displayNetworkStats();
+}
+
+/**
+ * Affiche les statistiques de profondeur
+ */
+function displayDepthStats() {
+    if (!depthData) return;
+    
+    const statsContainer = document.getElementById('depth-stats');
+    if (!statsContainer) return;
+    
+    const stats = depthData.stats;
+    const maxDepth = depthData.max_depth;
+    
+    let statsHtml = `
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Statistiques par niveau de profondeur</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Profondeur maximale:</strong> ${maxDepth}</p>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Niveau</th>
+                                <th>Pages</th>
+                                <th>Types de pages</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    // Générer les lignes pour chaque niveau de profondeur
+    for (let depth = 0; depth <= maxDepth; depth++) {
+        const depthStat = stats[depth] || { count: 0, types: {} };
+        
+        // Formater les types de pages
+        let typesHtml = '';
+        for (const [type, count] of Object.entries(depthStat.types)) {
+            typesHtml += `<span class="badge bg-secondary me-1">${type}: ${count}</span>`;
+        }
+        
+        statsHtml += `
+            <tr>
+                <td>${depth === 0 ? 'Racine' : depth}</td>
+                <td>${depthStat.count}</td>
+                <td>${typesHtml}</td>
+            </tr>
+        `;
+    }
+    
+    statsHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    statsContainer.innerHTML = statsHtml;
+}
+
+/**
+ * Met à jour les contrôles de l'interface avec les valeurs de la configuration actuelle
+ * mais préserve les options qui doivent être activées par défaut
+ */
+function updateControlsFromConfig() {
+    // Mettre à jour le nombre maximum de nœuds
+    const maxNodesSlider = document.getElementById('maxNodes');
+    const maxNodesValue = document.getElementById('maxNodesValue');
+    if (maxNodesSlider && maxNodesValue) {
+        maxNodesSlider.value = nodeDisplayConfig.maxNodes;
+        maxNodesValue.textContent = nodeDisplayConfig.maxNodes;
+    }
+    
+    // Mettre à jour le select de layout
+    const layoutSelect = document.getElementById('layoutSelect');
+    if (layoutSelect) {
+        // Utiliser le layout par défaut si aucun n'est spécifié
+        layoutSelect.value = cyConfig.layout.name || 'cose';
+    }
+    
+    // Mettre à jour l'URL racine
+    const rootUrlInput = document.getElementById('rootUrl');
+    if (rootUrlInput && visualizationConfig.root_url) {
+        rootUrlInput.value = visualizationConfig.root_url;
+    }
+    
+    // Ne pas mettre à jour les options qui doivent être activées par défaut
+    // Ces options sont gérées par setupDefaultOptions()
+}
+
+/**
+ * Configure les événements pour les options avancées
+ */
+function setupAdvancedOptions() {
+    // Configurer l'option de coloration par profondeur
+    const colorByDepth = document.getElementById('color-by-depth');
+    if (colorByDepth) {
+        colorByDepth.addEventListener('change', function() {
+            nodeDisplayConfig.colorByDepth = this.checked;
+            updateVisualization();
+        });
+    }
+    
+    // Configurer l'option de masquage des liens fréquents
+    const hideFrequentLinks = document.getElementById('hide-frequent-links');
+    if (hideFrequentLinks) {
+        hideFrequentLinks.addEventListener('change', function() {
+            nodeDisplayConfig.hideFrequentLinks = this.checked;
+            updateVisualization();
+        });
+    }
+}
+
+/**
+ * Définit l'URL racine par défaut et configure les options initiales
+ */
+function setupDefaultOptions() {
+    // S'assurer que visualizationConfig existe
+    if (!visualizationConfig) {
+        console.warn('visualizationConfig n\'est pas encore initialisé');
+        return;
+    }
+    
+    // Définir l'URL racine par défaut à la page d'accueil
+    const rootUrlInput = document.getElementById('rootUrl');
+    if (rootUrlInput) {
+        try {
+            const currentUrl = window.location.href;
+            const urlObj = new URL(currentUrl);
+            const rootUrl = `${urlObj.protocol}//${urlObj.hostname}`;
+            rootUrlInput.value = rootUrl;
+        } catch (e) {
+            console.error('Erreur lors de la définition de l\'URL racine par défaut:', e);
+        }
+    }
+    
+    // Configurer les liens avec l'ID du job
+    const backToResultsLink = document.getElementById('back-to-results');
+    if (backToResultsLink) {
+        const jobId = window.location.pathname.split('/').pop();
+        backToResultsLink.href = `/results/${jobId}`;
+    }
+    
+    // S'assurer que les options sont activées par défaut
+    const filterFrequentLinksCheckbox = document.getElementById('filterFrequentLinks');
+    if (filterFrequentLinksCheckbox) {
+        filterFrequentLinksCheckbox.checked = true;
+        visualizationConfig.filter_frequent_links = true;
+    }
+    
+    const colorByDepthCheckbox = document.getElementById('color-by-depth');
+    if (colorByDepthCheckbox) {
+        colorByDepthCheckbox.checked = true;
+        nodeDisplayConfig.colorByDepth = true;
+    }
+    
+    const hideFrequentLinksCheckbox = document.getElementById('hide-frequent-links');
+    if (hideFrequentLinksCheckbox) {
+        hideFrequentLinksCheckbox.checked = true;
+        nodeDisplayConfig.hideFrequentLinks = true;
+    }
+}
+
 // Exporter les fonctions
 window.initCytoscapeVisualization = initCytoscapeVisualization;
 window.updateCyMaxNodes = updateCyMaxNodes;
 window.changeLayout = changeLayout;
+window.updateVisualization = updateVisualization;
+
+// Pas d'initialisation automatique au chargement de la page

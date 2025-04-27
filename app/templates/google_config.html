@@ -1,0 +1,134 @@
+{% extends "layout.html" %}
+
+{% block title %}Configuration Google - SEO Internal Linking Tool{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if message %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-{% if success %}success{% else %}danger{% endif %} alert-dismissible fade show" role="alert">
+                <i class="bi bi-{% if success %}check-circle{% else %}exclamation-triangle{% endif %}-fill me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="card-title">
+                        <i class="bi bi-google me-2"></i>Configuration Google Search Console
+                    </h2>
+                    <p class="card-text">Configurez vos identifiants Google pour accéder à l'API Search Console.</p>
+                    
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle me-2"></i>Comment obtenir vos identifiants Google</h5>
+                        <ol>
+                            <li>Accédez à la <a href="https://console.cloud.google.com/" target="_blank">Console Google Cloud</a></li>
+                            <li>Créez un nouveau projet ou sélectionnez un projet existant</li>
+                            <li>Activez l'API Google Search Console dans la bibliothèque d'API</li>
+                            <li>Configurez l'écran de consentement OAuth (externe ou interne selon votre cas)</li>
+                            <li>Créez des identifiants OAuth 2.0 pour une application Web</li>
+                            <li>Ajoutez l'URI de redirection : <code>{{ redirect_uri }}</code></li>
+                            <li>Téléchargez le fichier JSON des identifiants</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h3 class="h5 mb-0">
+                        <i class="bi bi-upload me-2"></i>Télécharger le fichier d'identifiants
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <p>Téléchargez le fichier JSON d'identifiants OAuth 2.0 que vous avez obtenu de Google Cloud Console.</p>
+                    
+                    <form action="/api/google/upload-credentials" method="post" enctype="multipart/form-data" class="mt-3">
+                        <div class="mb-3">
+                            <label for="credentialsFile" class="form-label">Fichier d'identifiants JSON</label>
+                            <input class="form-control" type="file" id="credentialsFile" name="credentials_file" accept=".json">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-2"></i>Télécharger
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h3 class="h5 mb-0">
+                        <i class="bi bi-keyboard me-2"></i>Saisir les identifiants manuellement
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <p>Saisissez manuellement vos identifiants OAuth 2.0 pour Google Search Console.</p>
+                    
+                    <form action="/api/google/save-credentials" method="post" class="mt-3">
+                        <div class="mb-3">
+                            <label for="clientId" class="form-label">Client ID</label>
+                            <input type="text" class="form-control" id="clientId" name="client_id" placeholder="YOUR_CLIENT_ID.apps.googleusercontent.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="clientSecret" class="form-label">Client Secret</label>
+                            <input type="password" class="form-control" id="clientSecret" name="client_secret" placeholder="YOUR_CLIENT_SECRET" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="projectId" class="form-label">Project ID</label>
+                            <input type="text" class="form-control" id="projectId" name="project_id" placeholder="your-project-id">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-2"></i>Enregistrer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-2">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h3 class="h5 mb-0">
+                        <i class="bi bi-gear me-2"></i>Configuration actuelle
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if has_credentials %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill me-2"></i>Les identifiants Google sont configurés.
+                        <div class="mt-2">
+                            <strong>Client ID:</strong> {{ client_id_masked }}
+                        </div>
+                        <div class="mt-1">
+                            <strong>Project ID:</strong> {{ project_id }}
+                        </div>
+                    </div>
+                    <form action="/api/google/delete-credentials" method="post">
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="bi bi-trash me-2"></i>Supprimer les identifiants
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Aucun identifiant Google n'est configuré.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

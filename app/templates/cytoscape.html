@@ -21,6 +21,45 @@
             position: relative;
         }
         
+        /* Styles pour la bulle de détails */
+        #node-tooltip {
+            position: fixed; /* Utiliser fixed au lieu de absolute pour suivre la souris */
+            display: none;
+            background-color: white;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            padding: 15px;
+            min-width: 300px;
+            max-width: 400px;
+            min-height: 100px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 9999; /* Z-index élevé pour être au-dessus de tout */
+            font-size: 0.9rem;
+            pointer-events: auto; /* Permettre les clics sur la bulle */
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        
+        #node-tooltip h5 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 1rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        #node-tooltip .badge {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        #node-tooltip .url {
+            word-break: break-all;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+            color: #6c757d;
+        }
+        
         .cy-controls {
             position: absolute;
             top: 10px;
@@ -80,29 +119,79 @@
 </head>
 <body>
     <div class="container-fluid py-4">
-        <div class="row mb-4">
+        <div class="row mb-3">
             <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h1>Visualisation du maillage avec Cytoscape</h1>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Visualisation du maillage</h4>
                     <div>
-                        <a href="javascript:void(0)" id="back-to-results" class="btn btn-outline-primary">
+                        <a href="#" id="back-to-results" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> Retour aux résultats
-                        </a>
-                        <a href="javascript:void(0)" id="standard-visualization" class="btn btn-outline-secondary">
-                            <i class="bi bi-graph-up"></i> Visualisation standard
                         </a>
                     </div>
                 </div>
-                <p class="text-muted">
+                <p class="text-muted mb-2">
                     Cette visualisation utilise Cytoscape.js, une bibliothèque optimisée pour les grands graphes.
                 </p>
+            </div>
+        </div>
+        
+        <!-- Barre de contrôles principale - au-dessus de la ligne de flottaison -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Contrôles principaux</h5>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <label for="rootUrl" class="form-label mb-0">URL racine</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="rootUrl" placeholder="https://example.com/">
+                                    <button class="btn btn-primary" type="button" id="applyRootUrl">Appliquer</button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center h-100">
+                                    <div class="form-check mb-0 ms-2">
+                                        <input class="form-check-input" type="checkbox" id="filterFrequentLinks" checked>
+                                        <label class="form-check-label" for="filterFrequentLinks">
+                                            Identifier liens fréquents (menu/footer)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Affichage</h5>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label for="maxNodes" class="form-label mb-0">Nombre max. de nœuds: <span id="maxNodesValue">100</span></label>
+                                <input type="range" class="form-range" id="maxNodes" min="10" max="500" step="10" value="100" oninput="updateCyMaxNodes(this.value); document.getElementById('maxNodesValue').textContent = this.value;">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label mb-0">Layout</label>
+                                <select class="form-select" id="layoutSelect" onchange="changeLayout(this.value)">
+                                    <option value="cose" selected>Force-directed</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
         <div class="row">
             <div class="col-md-9">
                 <div class="card mb-4">
-                    <div class="card-header">
+                    <div class="card-header py-2">
                         <ul class="nav nav-tabs card-header-tabs" role="tablist">
                             <li class="nav-item" role="presentation">
                                 <a class="nav-link active" id="current-tab" data-bs-toggle="tab" href="#cy-current-network" role="tab">Maillage actuel</a>
@@ -114,35 +203,7 @@
                     </div>
                     
                     <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <div class="input-group">
-                                    <span class="input-group-text">Nombre de pages</span>
-                                    <select id="cy-node-limit" class="form-select" onchange="updateCyMaxNodes(parseInt(this.value))">
-                                        <option value="50">Top 50</option>
-                                        <option value="100" selected>Top 100</option>
-                                        <option value="200">Top 200</option>
-                                        <option value="500">Top 500</option>
-                                        <option value="1000">Top 1000</option>
-                                        <option value="0">Toutes</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="input-group">
-                                    <span class="input-group-text">Layout</span>
-                                    <select id="cy-layout" class="form-select" onchange="changeLayout(this.value)">
-                                        <option value="cose" selected>Force-directed (COSE)</option>
-                                        <option value="concentric">Concentrique (par PageRank)</option>
-                                        <option value="breadthfirst">Hiérarchique</option>
-                                        <option value="circle">Circulaire</option>
-                                        <option value="grid">Grille</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="tab-content">
+                        <div class="tab-content" id="cy-tab-content">
                             <div class="tab-pane fade show active" id="cy-current-network" role="tabpanel">
                                 <div class="cy-container" id="cy-current-graph">
                                     <div class="spinner-container" id="cy-current-spinner">
@@ -151,6 +212,7 @@
                                         </div>
                                     </div>
                                 </div>
+
                                 <div class="network-legend mt-2">
                                     <div class="legend-item">
                                         <div class="legend-color" style="background-color: #007bff;"></div>
@@ -196,25 +258,50 @@
             </div>
             
             <div class="col-md-3">
-                <div id="node-details">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">Détails</h5>
+                <!-- Contrôles de profondeur ajoutés ici -->
+                <div id="depth-controls" class="mb-3"></div>
+                
+                <!-- Options de visualisation avancées -->
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Options avancées</h5>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="color-by-depth" checked>
+                            <label class="form-check-label" for="color-by-depth">
+                                Colorer par niveau de profondeur
+                            </label>
                         </div>
-                        <div class="card-body">
-                            <p class="text-muted">
-                                Cliquez sur un nœud pour afficher ses détails.
-                            </p>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="hide-frequent-links" checked>
+                            <label class="form-check-label" for="hide-frequent-links">
+                                Masquer les liens fréquents
+                            </label>
+                        </div>
+                        <div class="d-grid gap-1 mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="changeLayout('depth')">
+                                Visualisation hiérarchique
+                            </button>
                         </div>
                     </div>
                 </div>
                 
-                <div id="network-stats" class="mt-4">
+                <!-- Statistiques de profondeur -->
+                <div id="depth-stats" class="mb-3"></div>
+                
+                <!-- Le panneau de détails a été supprimé et remplacé par une bulle contextuelle -->
+                
+                
+                <div id="network-stats" class="mb-3">
                     <!-- Les statistiques du réseau seront affichées ici -->
                 </div>
             </div>
         </div>
     </div>
+    
+    <!-- Conteneur pour la bulle de détails (positionné au niveau du body pour être visible partout) -->
+    <div id="node-tooltip" class="shadow">Chargement des détails...</div>
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -223,15 +310,18 @@
     <script src="/static/js/cytoscape-visualization.js"></script>
     
     <script>
-        // Charger les données du graphe
+        // Script d'initialisation pour charger les données
         document.addEventListener('DOMContentLoaded', function() {
             const jobId = window.location.pathname.split('/').pop();
             
-            // Configurer les liens avec l'ID du job
-            document.getElementById('back-to-results').href = `/results/${jobId}`;
-            document.getElementById('standard-visualization').href = `/visualization/${jobId}`;
+            // Configurer le lien de retour
+            const backLink = document.getElementById('back-to-results');
+            if (backLink) {
+                backLink.href = `/results/${jobId}`;
+            }
             
-            fetch(`/api/visualization-data/${jobId}`)
+            // Charger les données de visualisation
+            fetch(`/api/visualization-data/${jobId}?filter_frequent_links=true`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`Erreur HTTP: ${response.status}`);
@@ -239,23 +329,139 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Masquer les spinners
-                    document.getElementById('cy-current-spinner').style.display = 'none';
-                    document.getElementById('cy-optimized-spinner').style.display = 'none';
+                    // Masquer les spinners immédiatement après réception des données
+                    const spinners = ['cy-current-spinner', 'cy-optimized-spinner'];
+                    spinners.forEach(spinnerId => {
+                        const spinner = document.getElementById(spinnerId);
+                        if (spinner) spinner.style.display = 'none';
+                    });
                     
-                    console.log('Données reçues pour la visualisation:', data);
-                    
-                    // Initialiser la visualisation
-                    initCytoscapeVisualization(data);
+                    // Initialiser la visualisation avec les données
+                    if (typeof initCytoscapeVisualization === 'function') {
+                        initCytoscapeVisualization(data);
+                    } else {
+                        console.error('La fonction initCytoscapeVisualization n\'est pas disponible');
+                    }
                 })
                 .catch(error => {
                     console.error('Erreur lors du chargement des données:', error);
-                    alert('Erreur lors du chargement des données: ' + error.message);
-                    
-                    // Masquer les spinners en cas d'erreur
-                    document.getElementById('cy-current-spinner').style.display = 'none';
-                    document.getElementById('cy-optimized-spinner').style.display = 'none';
+                    alert('Erreur lors du chargement des données de visualisation. Veuillez réessayer.');
                 });
+            
+            // Fonction pour charger les données de visualisation avec des paramètres spécifiques
+            function loadVisualizationData(rootUrl = null, filterFrequentLinks = true) {
+                // Construire l'URL de l'API avec les paramètres
+                let apiUrl = `/api/visualization-data/${jobId}`;
+                const params = new URLSearchParams();
+                
+                if (rootUrl) {
+                    params.append('root_url', rootUrl);
+                }
+                
+                if (filterFrequentLinks) {
+                    params.append('filter_frequent_links', 'true');
+                }
+                
+                if (params.toString()) {
+                    apiUrl += `?${params.toString()}`;
+                }
+                
+                // Afficher les spinners
+                const currentSpinner = document.getElementById('cy-current-spinner');
+                const optimizedSpinner = document.getElementById('cy-optimized-spinner');
+                if (currentSpinner) currentSpinner.style.display = 'flex';
+                if (optimizedSpinner) optimizedSpinner.style.display = 'flex';
+                
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Erreur HTTP: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Masquer tous les spinners immédiatement après réception des données
+                        const spinners = ['cy-current-spinner', 'cy-optimized-spinner'];
+                        spinners.forEach(spinnerId => {
+                            const spinner = document.getElementById(spinnerId);
+                            if (spinner) spinner.style.display = 'none';
+                        });
+                        
+                        console.log('Données reçues pour la visualisation:', data);
+                        
+                        // Initialiser la visualisation
+                        initCytoscapeVisualization(data);
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du chargement des données:', error);
+                        alert('Erreur lors du chargement des données: ' + error.message);
+                        
+                        // Masquer les spinners en cas d'erreur
+                        if (currentSpinner) currentSpinner.style.display = 'none';
+                        if (optimizedSpinner) optimizedSpinner.style.display = 'none';
+                    });
+            }
+            
+            // Ajouter les événements pour les contrôles de visualisation
+            const applyRootUrlButton = document.getElementById('applyRootUrl');
+            if (applyRootUrlButton) {
+                applyRootUrlButton.addEventListener('click', function() {
+                    const rootUrlInput = document.getElementById('rootUrl');
+                    const filterFrequentLinksCheckbox = document.getElementById('filterFrequentLinks');
+                    
+                    if (rootUrlInput && filterFrequentLinksCheckbox) {
+                        const rootUrl = rootUrlInput.value.trim();
+                        const filterFrequentLinks = filterFrequentLinksCheckbox.checked;
+                        
+                        if (rootUrl) {
+                            loadVisualizationData(rootUrl, filterFrequentLinks);
+                        } else {
+                            alert('Veuillez spécifier une URL racine valide');
+                        }
+                    }
+                });
+            }
+            
+            const filterFrequentLinksCheckbox = document.getElementById('filterFrequentLinks');
+            if (filterFrequentLinksCheckbox) {
+                filterFrequentLinksCheckbox.addEventListener('change', function() {
+                    const rootUrlInput = document.getElementById('rootUrl');
+                    if (rootUrlInput) {
+                        const rootUrl = rootUrlInput.value.trim();
+                        const filterFrequentLinks = this.checked;
+                        
+                        if (rootUrl) {
+                            loadVisualizationData(rootUrl, filterFrequentLinks);
+                        }
+                    }
+                });
+            }
+            
+            // Pré-remplir l'URL racine avec le domaine de base
+            const rootUrlInput = document.getElementById('rootUrl');
+            if (rootUrlInput && !rootUrlInput.value) {
+                // Récupérer le domaine à partir des données de visualisation
+                fetch(`/api/visualization-data/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.nodes && data.nodes.length > 0) {
+                            // Trouver la première URL et extraire le domaine
+                            const firstUrl = data.nodes[0].data.url;
+                            if (firstUrl) {
+                                try {
+                                    const url = new URL(firstUrl);
+                                    rootUrlInput.value = `${url.protocol}//${url.hostname}`;
+                                } catch (e) {
+                                    console.error('Erreur lors de l\'analyse de l\'URL:', e);
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Erreur lors de la récupération des données:', error));
+            }
+            
+            // Charger les données initiales
+            loadVisualizationData();
         });
     </script>
 </body>

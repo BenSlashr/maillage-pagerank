@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 # Import du gestionnaire de règles de segmentation
-from models.segment_rules import SegmentRuleManager
+from app.models.segment_rules import SegmentRuleManager
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ class WebCrawler:
         max_retries: int = 3,
         user_agent: str = "MaillageBot/1.0",
         segment_rules_file: Optional[str] = None,
+        exclude_from_linking_patterns: List[str] = None,
         exclude_patterns: List[str] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None
     ):
@@ -90,8 +91,11 @@ class WebCrawler:
         self.crawled_urls = set()  # URLs déjà crawlées
         self.failed_urls = set()  # URLs qui ont échoué
         
-        # Patterns d'URL à exclure
+        # Liste des patterns d'URLs à exclure du crawl
         self.exclude_patterns = exclude_patterns or []
+        
+        # Liste des patterns d'URLs à exclure du plan de maillage (mais pas du crawl)
+        self.exclude_from_linking_patterns = exclude_from_linking_patterns or []
         
         # Données extraites
         self.pages_data: List[Dict[str, Any]] = []
@@ -509,6 +513,31 @@ class WebCrawler:
             elif pattern in url:
                 return True
         return False
+        
+    def _is_url_excluded_from_linking(self, url: str) -> bool:
+        """
+        Vérifie si une URL correspond à un pattern d'exclusion du plan de maillage.
+        Ces URLs sont crawlées mais ne sont pas incluses dans le plan de maillage.
+        
+        Args:
+            url: URL à vérifier
+            
+        Returns:
+            True si l'URL doit être exclue du plan de maillage, False sinon
+        """
+        for pattern in self.exclude_from_linking_patterns:
+            # Si le pattern commence par regex:, le traiter comme une expression régulière
+            if pattern.startswith("regex:"):
+                regex_pattern = pattern[6:]
+                try:
+                    if re.search(regex_pattern, url):
+                        return True
+                except re.error as e:
+                    logger.warning(f"Expression régulière invalide '{regex_pattern}': {str(e)}")
+            # Sinon, vérifier si le pattern est contenu dans l'URL
+            elif pattern in url:
+                return True
+        return False
     
     async def _generate_content_file(self) -> str:
         """
@@ -599,16 +628,28 @@ class WebCrawler:
             source_url = link["Source"]
             target_url = link["Destination"]
             
-            # Ne garder que les liens entre pages valides (code 200)
-            if link["Interne"] and source_url in valid_urls and target_url in valid_urls:
+            # Ne garder que les liens entre pages valides (code 200) et non exclues du plan de maillage
+            if (link["Interne"] and source_url in valid_urls and target_url in valid_urls
+                and not self._is_url_excluded_from_linking(source_url) 
+                and not self._is_url_excluded_from_linking(target_url)):
                 filtered_links.append({
                     "Source": source_url,
                     "Destination": target_url,
                     "Texte": link["Texte"]
                 })
                 
-        # Journaliser le nombre de liens conservés
+        # Compter le nombre d'URLs exclues du plan de maillage
+        excluded_from_linking_urls = {url for url in valid_urls if self._is_url_excluded_from_linking(url)}
+        
+        # Journaliser le nombre de liens conservés et d'URLs exclues du plan de maillage
         logger.info(f"Liens conservés pour le maillage (entre pages avec code 200): {len(filtered_links)} sur {len(self.links_data)} liens détectés")
+        if excluded_from_linking_urls:
+            logger.info(f"URLs exclues du plan de maillage: {len(excluded_from_linking_urls)} URLs")
+            # Afficher les 10 premières URLs exclues pour information
+            for url in list(excluded_from_linking_urls)[:10]:
+                logger.info(f"  - URL exclue du plan de maillage: {url}")
+            if len(excluded_from_linking_urls) > 10:
+                logger.info(f"  - ... et {len(excluded_from_linking_urls) - 10} autres URLs exclues")
         
         df = pd.DataFrame(filtered_links)
         

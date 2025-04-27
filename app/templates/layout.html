@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SEO Internal Linking Tool{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
+    
+    <!-- Polices Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- CSS Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Notre CSS personnalisé -->
+    <link rel="stylesheet" href="/static/css/modern-style.css">
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- CSS spécifique à la page -->
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-diagram-3 me-2"></i>
+                SEO Internal Linking Tool
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+                            <i class="bi bi-house me-1"></i> Accueil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if '/analysis' in request.path %}active{% endif %}" href="/analysis">
+                            <i class="bi bi-bar-chart me-1"></i> Analyse
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if '/rules' in request.path %}active{% endif %}" href="/rules">
+                            <i class="bi bi-list-check me-1"></i> Règles
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if '/crawler' in request.path %}active{% endif %}" href="/crawler">
+                            <i class="bi bi-globe me-1"></i> Crawler
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if '/gsc' in request.path or '/google-config' in request.path %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-google me-1"></i> Google Search Console
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item {% if '/gsc' in request.path %}active{% endif %}" href="/gsc">
+                                    <i class="bi bi-search me-1"></i> Données GSC
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if '/google-config' in request.path %}active{% endif %}" href="/google-config">
+                                    <i class="bi bi-gear me-1"></i> Configuration OAuth
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if '/segment_rules' in request.path %}active{% endif %}" href="/segment_rules">
+                            <i class="bi bi-tags me-1"></i> Segments
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="container py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Pied de page -->
+    <footer class="footer">
+        <div class="container text-center">
+            <p class="mb-0">SEO Internal Linking Tool &copy; 2025</p>
+            <p class="text-muted small">Un outil professionnel pour optimiser votre maillage interne</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Scripts spécifiques à la page -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>
