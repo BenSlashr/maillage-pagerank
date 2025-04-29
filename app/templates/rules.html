@@ -112,7 +112,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     
-                    fetch('/api/upload/content', {
+                    fetch(`${basePath}/api/upload/content`, {
                         method: 'POST',
                         body: formData
                     })
@@ -130,7 +130,7 @@
                 loadSegments() {
                     if (!this.contentFilePath) return;
                     
-                    fetch(`/api/segments?content_file=${encodeURIComponent(this.contentFilePath)}`)
+                    fetch(`${basePath}/api/segments?content_file=${encodeURIComponent(this.contentFilePath)}`)
                         .then(response => response.json())
                         .then(data => {
                             this.segments = data.segments;
@@ -167,7 +167,7 @@
                 },
                 
                 loadExistingRules() {
-                    fetch('/api/rules')
+                    fetch(`${basePath}/api/rules`)
                         .then(response => response.json())
                         .then(data => {
                             if (data.rules && Object.keys(data.rules).length > 0) {
@@ -204,7 +204,7 @@
                     }
                     
                     // Envoyer les règles au serveur
-                    fetch('/api/rules', {
+                    fetch(`${basePath}/api/rules`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'

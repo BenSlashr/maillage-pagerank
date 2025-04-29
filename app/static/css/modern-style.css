@@ -133,12 +133,13 @@ code, pre {
 }
 
 .navbar-dark {
-  background-color: var(--primary);
+  background-color: var(--primary) !important;
+  border-bottom: none !important;
 }
 
 .navbar-dark .navbar-brand,
 .navbar-dark .nav-link {
-  color: white;
+  color: white !important;
 }
 
 .navbar-dark .nav-link:hover {
@@ -166,8 +167,8 @@ code, pre {
 }
 
 .navbar-dark .nav-link.active {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.15);
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 /* Cartes */

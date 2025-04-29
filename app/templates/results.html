@@ -248,7 +248,7 @@
                     
                     // Rien à faire ici, le spinner est déjà créé et visible
                     
-                    fetch(`/api/job/${this.jobId}`)
+                    fetch(`${basePath}/api/job/${this.jobId}`)
                         .then(response => {
                             if (!response.ok) {
                                 throw new Error('Impossible de récupérer les informations de la tâche');
@@ -263,7 +263,7 @@
                             }
                             
                             // Charger les résultats
-                            return fetch(`/api/results/${this.jobId}?format=json`);
+                            return fetch(`${basePath}/api/results/${this.jobId}?format=json`);
                         })
                         .then(response => {
                             if (!response) return; // Si null, arrêter la chaîne

@@ -24,6 +24,24 @@
     <!-- Notre CSS personnalisé -->
     <link rel="stylesheet" href="/static/css/modern-style.css">
     
+    <!-- Détection dynamique du chemin de base pour les API calls -->
+    <script>
+        // Détection spécifique pour le déploiement sur VPS
+        let basePath = '';
+        
+        // Vérifier si nous sommes sur le VPS avec le chemin /maillage-pagerank/
+        if (window.location.hostname === 'outils.agence-slashr.fr') {
+            basePath = '/maillage-pagerank';
+        } else {
+            // Fallback à la détection dynamique standard
+            basePath = window.location.pathname.split('/')[1] ? '/' + window.location.pathname.split('/')[1] : '';
+        }
+        
+        console.log('Base path detected:', basePath);
+        
+        // Cette variable est utilisée uniquement pour les appels API et WebSocket
+    </script>
+    
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
@@ -44,7 +62,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+                        <a class="nav-link {% if request.path == '/' or request.path.endswith('/') and request.path.count('/') == 1 %}active{% endif %}" href="/">
                             <i class="bi bi-house me-1"></i> Accueil
                         </a>
                     </li>

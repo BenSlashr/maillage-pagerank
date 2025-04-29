@@ -298,7 +298,8 @@
             
             // Fonction pour connecter au WebSocket
             function connectWebSocket(jobId) {
-                websocket = new WebSocket(`ws://${window.location.host}/ws/${jobId}`);
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                websocket = new WebSocket(`${protocol}//${window.location.host}${basePath}/ws/${jobId}`);
                 
                 websocket.onopen = function(event) {
                     addLog(`Connexion WebSocket établie pour la tâche ${jobId}`);
@@ -396,7 +397,7 @@
                     formData.append('test_url', testUrl);
                     formData.append('pattern', pattern);
                     
-                    const response = await fetch('/api/test_exclude_pattern', {
+                    const response = await fetch(`${basePath}/api/test_exclude_pattern`, {
                         method: 'POST',
                         body: formData
                     });
@@ -435,7 +436,7 @@
                 updateProgress(0, 100);
                 
                 // Envoyer la requête pour démarrer le crawl
-                fetch('/api/start_crawl', {
+                fetch(`${basePath}/api/start_crawl`, {
                     method: 'POST',
                     body: formData
                 })
@@ -461,7 +462,7 @@
             stopCrawlBtn.addEventListener('click', function() {
                 if (!jobId) return;
                 
-                fetch(`/api/stop_crawl/${jobId}`, {
+                fetch(`${basePath}/api/stop_crawl/${jobId}`, {
                     method: 'POST'
                 })
                 .then(response => response.json())

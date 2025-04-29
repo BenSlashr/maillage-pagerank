@@ -129,6 +129,7 @@ app = FastAPI(
     title="SEO Internal Linking API",
     description="API pour l'analyse et l'optimisation du maillage interne pour le SEO",
     version="1.0.0",
+    root_path="/maillage-pagerank",
     # Utiliser notre réponse JSON personnalisée comme classe de réponse par défaut
     default_response_class=CustomJSONResponse
 )
@@ -2333,4 +2334,4 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8003))
 
     # Lancer Uvicorn
-    uvicorn.run("app.main:app", host=host, port=port, reload=True, log_level="info")
+    uvicorn.run("app.main:app", host=host, port=port, reload=True, log_level="info", root_path="/maillage-pagerank")

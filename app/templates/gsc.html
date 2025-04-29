@@ -219,7 +219,7 @@
             
             async checkCredentials() {
                 try {
-                    const response = await fetch('/api/google/status-credentials');
+                    const response = await fetch(`${basePath}/api/google/status-credentials`);
                     const data = await response.json();
                     this.hasCredentials = data.has_credentials;
                 } catch (error) {
@@ -234,7 +234,7 @@
             
             async checkAuthStatus() {
                 try {
-                    const response = await fetch('/api/google/status');
+                    const response = await fetch(`${basePath}/api/google/status`);
                     const data = await response.json();
                     console.log('Statut d\'authentification:', data);
                     this.authenticated = data.authenticated;
@@ -251,7 +251,7 @@
             async authenticate() {
                 try {
                     console.log('Début de l\'authentification...');
-                    const response = await fetch('/api/google/auth');
+                    const response = await fetch(`${basePath}/api/google/auth`);
                     const data = await response.json();
                     
                     console.log('Réponse de l\'API auth:', data);
@@ -278,7 +278,7 @@
             
             async loadSites() {
                 try {
-                    const response = await fetch('/api/google/sites');
+                    const response = await fetch(`${basePath}/api/google/sites`);
                     const data = await response.json();
                     
                     this.sites = data.sites;
@@ -299,7 +299,7 @@
                     if (!this.dimensions.includes('page')) this.dimensions.push('page');
                     if (!this.dimensions.includes('query')) this.dimensions.push('query');
                     
-                    const response = await fetch('/api/google/analytics', {
+                    const response = await fetch(`${basePath}/api/google/analytics`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -338,7 +338,7 @@
                 this.isExporting = true;
                 
                 try {
-                    const response = await fetch('/api/google/export-to-file', {
+                    const response = await fetch(`${basePath}/api/google/export-to-file`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -426,7 +426,7 @@
                     formData.append('file', file);
                     
                     // Envoyer le fichier au serveur
-                    const uploadResponse = await fetch('/api/upload/gsc', {
+                    const uploadResponse = await fetch(`${basePath}/api/upload/gsc`, {
                         method: 'POST',
                         body: formData
                     });

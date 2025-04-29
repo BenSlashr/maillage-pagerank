@@ -260,7 +260,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     
-                    fetch('/api/upload/content', {
+                    fetch(`${basePath}/api/upload/content`, {
                         method: 'POST',
                         body: formData
                     })
@@ -282,7 +282,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     
-                    fetch('/api/upload/links', {
+                    fetch(`${basePath}/api/upload/links`, {
                         method: 'POST',
                         body: formData
                     })
@@ -304,7 +304,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     
-                    fetch('/api/upload/gsc', {
+                    fetch(`${basePath}/api/upload/gsc`, {
                         method: 'POST',
                         body: formData
                     })
@@ -357,7 +357,7 @@
                 connectWebSocket() {
                     // Créer une connexion WebSocket
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = `${protocol}//${window.location.host}/ws/${this.jobId}`;
+                    const wsUrl = `${protocol}//${window.location.host}${basePath}/ws/${this.jobId}`;
                     
                     this.socket = new WebSocket(wsUrl);
                     
@@ -402,7 +402,7 @@
                     console.log('Fallback HTTP: Vérification du statut de la tâche');
                     
                     const checkStatus = () => {
-                        fetch(`/api/job/${this.jobId}`)
+                        fetch(`${basePath}/api/job/${this.jobId}`)
                             .then(response => response.json())
                             .then(data => {
                                 this.jobStatus = data;
@@ -416,7 +416,7 @@
                                 if (data.status === 'completed') {
                                     this.logHistory.push('Redirection automatique vers la page de résultats...');
                                     setTimeout(() => {
-                                        window.location.href = `/results/${this.jobId}`;
+                                        window.location.href = `${basePath}/results/${this.jobId}`;
                                     }, 1000);
                                 }
                                 // Continuer à vérifier si l'analyse est toujours en cours
@@ -436,7 +436,7 @@
                 stopAnalysis() {
                     if (!this.jobId) return;
                     
-                    fetch(`/api/stop/${this.jobId}`)
+                    fetch(`${basePath}/api/stop/${this.jobId}`)
                         .then(response => response.json())
                         .then(data => {
                             this.jobStatus = data;
@@ -451,7 +451,7 @@
                 forceCompleteAnalysis() {
                     if (!this.jobId) return;
                     
-                    fetch(`/api/force-complete/${this.jobId}`)
+                    fetch(`${basePath}/api/force-complete/${this.jobId}`)
                         .then(response => response.json())
                         .then(data => {
                             this.jobStatus = data;

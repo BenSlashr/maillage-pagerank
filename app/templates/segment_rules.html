@@ -269,12 +269,19 @@ const segmentRulesApp = {
     
     // Charger les règles depuis le serveur
     loadRules() {
-        fetch('/api/segment_rules')
+        fetch(`${basePath}/api/segment_rules`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     this.rules = data.rules || [];
                     this.defaultSegment = data.default_segment || 'page';
+                    document.getElementById('defaultSegment').value = this.defaultSegment;
+                    this.renderRules();
+                } else if (data.message === 'undefined' || !data.message) {
+                    // Cas où aucun segment n'est configuré - c'est normal pour un premier usage
+                    console.log('Aucun segment configuré - initialisation avec des valeurs par défaut');
+                    this.rules = [];
+                    this.defaultSegment = 'page';
                     document.getElementById('defaultSegment').value = this.defaultSegment;
                     this.renderRules();
                 } else {
@@ -284,7 +291,15 @@ const segmentRulesApp = {
             })
             .catch(error => {
                 console.error('Erreur lors du chargement des règles:', error);
-                alert('Erreur lors du chargement des règles. Veuillez réessayer.');
+                // Vérifier si c'est une première utilisation (fichier non trouvé)
+                if (error.message && error.message.includes('not found')) {
+                    this.rules = [];
+                    this.defaultSegment = 'page';
+                    document.getElementById('defaultSegment').value = this.defaultSegment;
+                    this.renderRules();
+                } else {
+                    alert('Erreur lors du chargement des règles. Veuillez réessayer.');
+                }
             });
     },
     
@@ -483,7 +498,7 @@ const segmentRulesApp = {
             default_segment: this.defaultSegment
         };
         
-        fetch('/api/segment_rules', {
+        fetch(`${basePath}/api/segment_rules`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
