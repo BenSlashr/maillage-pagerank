@@ -26,6 +26,15 @@ from fastapi.concurrency import run_in_threadpool
 import openpyxl
 from fastapi.encoders import jsonable_encoder
 from urllib.parse import urlparse
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
+
+# Récupérer les variables d'environnement avec des valeurs par défaut
+BASE_PATH = os.getenv("BASE_PATH", "")
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", 8000))
 
 # Classe d'encodeur JSON personnalisée pour gérer les valeurs flottantes hors limites
 class CustomJSONEncoder(json.JSONEncoder):
@@ -129,7 +138,7 @@ app = FastAPI(
     title="SEO Internal Linking API",
     description="API pour l'analyse et l'optimisation du maillage interne pour le SEO",
     version="1.0.0",
-    root_path="/maillage-pagerank",
+    root_path=BASE_PATH,
     # Utiliser notre réponse JSON personnalisée comme classe de réponse par défaut
     default_response_class=CustomJSONResponse
 )
@@ -223,11 +232,11 @@ class AnalysisConfig(BaseModel):
 # Routes pour les pages HTML
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/gsc", response_class=HTMLResponse)
 def gsc_page(request: Request):
-    return templates.TemplateResponse("gsc.html", {"request": request})
+    return templates.TemplateResponse("gsc.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/google-config", response_class=HTMLResponse)
 def google_config_page(request: Request):
@@ -252,30 +261,31 @@ def google_config_page(request: Request):
         context["client_id_masked"] = mask_client_id(credentials_info.get("client_id", ""))
         context["project_id"] = credentials_info.get("project_id", "Non spécifié")
     
+    context["base_path"] = BASE_PATH
     return templates.TemplateResponse("google_config.html", context)
 
 @app.get("/analysis", response_class=HTMLResponse)
 async def analysis_page(request: Request):
-    return templates.TemplateResponse("analysis.html", {"request": request})
+    return templates.TemplateResponse("analysis.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/rules", response_class=HTMLResponse)
 async def rules_page(request: Request):
-    return templates.TemplateResponse("rules.html", {"request": request})
+    return templates.TemplateResponse("rules.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/crawler")
 async def get_crawler_page(request: Request):
     """Affiche la page du crawler"""
-    return templates.TemplateResponse("crawler.html", {"request": request})
+    return templates.TemplateResponse("crawler.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/segment_rules")
 async def get_segment_rules_page(request: Request):
     """Affiche la page de gestion des règles de segmentation"""
-    return templates.TemplateResponse("segment_rules.html", {"request": request})
+    return templates.TemplateResponse("segment_rules.html", {"request": request, "base_path": BASE_PATH})
 
 @app.get("/results/{job_id}", response_class=HTMLResponse)
 async def read_results(request: Request, job_id: str):
     """Page de résultats de l'analyse"""
-    return templates.TemplateResponse("results.html", {"request": request, "job_id": job_id})
+    return templates.TemplateResponse("results.html", {"request": request, "job_id": job_id, "base_path": BASE_PATH})
 
 @app.get("/visualization/{job_id}", response_class=HTMLResponse)
 async def read_visualization(request: Request, job_id: str):
@@ -304,7 +314,7 @@ async def read_cytoscape_visualization(request: Request, job_id: str):
         # Rediriger vers la page de résultats si l'analyse n'est pas terminée
         return RedirectResponse(url=f"/results/{job_id}")
         
-    return templates.TemplateResponse("cytoscape.html", {"request": request, "job_id": job_id})
+    return templates.TemplateResponse("cytoscape.html", {"request": request, "job_id": job_id, "base_path": BASE_PATH})
 
 @app.get("/pagerank-report/{job_id}", response_class=HTMLResponse)
 async def read_pagerank_report(request: Request, job_id: str):
@@ -317,7 +327,7 @@ async def read_pagerank_report(request: Request, job_id: str):
         # Rediriger vers la page de résultats si l'analyse n'est pas terminée
         return RedirectResponse(url=f"/results/{job_id}")
         
-    return templates.TemplateResponse("pagerank_report.html", {"request": request, "job_id": job_id})
+    return templates.TemplateResponse("pagerank_report.html", {"request": request, "job_id": job_id, "base_path": BASE_PATH})
 
 # Routes API
 @app.post("/api/upload/content")
@@ -2329,9 +2339,5 @@ if __name__ == "__main__":
         logging.error(f"Erreur lors de la création des répertoires: {e}")
 
     logging.info("Lancement de l'application via 'python app/main.py'...")
-    # Configuration de Uvicorn
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8003))
-
-    # Lancer Uvicorn
-    uvicorn.run("app.main:app", host=host, port=port, reload=True, log_level="info", root_path="/maillage-pagerank")
+    # Lancer Uvicorn avec les variables d'environnement
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=True, log_level="info", root_path=BASE_PATH)
