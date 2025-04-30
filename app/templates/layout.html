@@ -6,9 +6,9 @@
     <title>{% block title %}SEO Internal Linking Tool{% endblock %}</title>
     
     <!-- Favicon -->
-    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-    <link rel="alternate icon" href="/static/favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" href="/static/favicon.svg">
+    <link rel="icon" href="{{ base_path }}/static/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="{{ base_path }}/static/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="{{ base_path }}/static/favicon.svg">
     
     <!-- Polices Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     
     <!-- Notre CSS personnalisé -->
-    <link rel="stylesheet" href="/static/css/modern-style.css">
+    <link rel="stylesheet" href="{{ base_path }}/static/css/modern-style.css">
     
     <!-- Chemin de base pour les API calls -->
     <script>
@@ -41,7 +41,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">
+            <a class="navbar-brand" href="{{ base_path }}/">
                 <i class="bi bi-diagram-3 me-2"></i>
                 SEO Internal Linking Tool
             </a>
@@ -51,22 +51,22 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' or request.path.endswith('/') and request.path.count('/') == 1 %}active{% endif %}" href="/">
+                        <a class="nav-link {% if request.path == '/' or request.path.endswith('/') and request.path.count('/') == 1 %}active{% endif %}" href="{{ base_path }}/">
                             <i class="bi bi-house me-1"></i> Accueil
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if '/analysis' in request.path %}active{% endif %}" href="/analysis">
+                        <a class="nav-link {% if '/analysis' in request.path %}active{% endif %}" href="{{ base_path }}/analysis">
                             <i class="bi bi-bar-chart me-1"></i> Analyse
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if '/rules' in request.path %}active{% endif %}" href="/rules">
+                        <a class="nav-link {% if '/rules' in request.path %}active{% endif %}" href="{{ base_path }}/rules">
                             <i class="bi bi-list-check me-1"></i> Règles
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if '/crawler' in request.path %}active{% endif %}" href="/crawler">
+                        <a class="nav-link {% if '/crawler' in request.path %}active{% endif %}" href="{{ base_path }}/crawler">
                             <i class="bi bi-globe me-1"></i> Crawler
                         </a>
                     </li>
@@ -76,19 +76,19 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li>
-                                <a class="dropdown-item {% if '/gsc' in request.path %}active{% endif %}" href="/gsc">
+                                <a class="dropdown-item {% if '/gsc' in request.path %}active{% endif %}" href="{{ base_path }}/gsc">
                                     <i class="bi bi-search me-1"></i> Données GSC
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {% if '/google-config' in request.path %}active{% endif %}" href="/google-config">
+                                <a class="dropdown-item {% if '/google-config' in request.path %}active{% endif %}" href="{{ base_path }}/google-config">
                                     <i class="bi bi-gear me-1"></i> Configuration OAuth
                                 </a>
                             </li>
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if '/segment_rules' in request.path %}active{% endif %}" href="/segment_rules">
+                        <a class="nav-link {% if '/segment_rules' in request.path %}active{% endif %}" href="{{ base_path }}/segment_rules">
                             <i class="bi bi-tags me-1"></i> Segments
                         </a>
                     </li>

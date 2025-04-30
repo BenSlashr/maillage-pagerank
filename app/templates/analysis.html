@@ -338,7 +338,7 @@
                     if (this.gscFilePath) formData.append('gsc_file', this.gscFilePath);
                     formData.append('config', JSON.stringify(this.config));
                     
-                    fetch('/api/analyze', {
+                    fetch(`${basePath}/api/analyze`, {
                         method: 'POST',
                         body: formData
                     })
@@ -569,7 +569,7 @@
                     formData.append('config', JSON.stringify(this.config));
                     
                     // Lancer l'analyse
-                    fetch('/api/analyze', {
+                    fetch(`${basePath}/api/analyze`, {
                         method: 'POST',
                         body: formData
                     })

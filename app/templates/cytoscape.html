@@ -321,7 +321,7 @@
             }
             
             // Charger les données de visualisation
-            fetch(`/api/visualization-data/${jobId}?filter_frequent_links=true`)
+            fetch(`${basePath}/api/visualization-data/${jobId}?filter_frequent_links=true`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`Erreur HTTP: ${response.status}`);
@@ -351,7 +351,7 @@
             // Fonction pour charger les données de visualisation avec des paramètres spécifiques
             function loadVisualizationData(rootUrl = null, filterFrequentLinks = true) {
                 // Construire l'URL de l'API avec les paramètres
-                let apiUrl = `/api/visualization-data/${jobId}`;
+                let apiUrl = `${basePath}/api/visualization-data/${jobId}`;
                 const params = new URLSearchParams();
                 
                 if (rootUrl) {
@@ -441,7 +441,7 @@
             const rootUrlInput = document.getElementById('rootUrl');
             if (rootUrlInput && !rootUrlInput.value) {
                 // Récupérer le domaine à partir des données de visualisation
-                fetch(`/api/visualization-data/${jobId}`)
+                fetch(`${basePath}/api/visualization-data/${jobId}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.nodes && data.nodes.length > 0) {

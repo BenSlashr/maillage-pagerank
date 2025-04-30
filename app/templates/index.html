@@ -29,7 +29,7 @@
                             <div>
                                 <h4>Étape 1: Crawler votre site</h4>
                                 <p>Notre crawler intelligent récupère automatiquement le contenu et la structure de liens de votre site web.</p>
-                                <a href="/crawler" class="btn btn-outline-primary">
+                                <a href="{{ base_path }}/crawler" class="btn btn-outline-primary">
                                     <i class="bi bi-globe me-1"></i> Lancer le crawler
                                 </a>
                             </div>
@@ -41,7 +41,7 @@
                             <div>
                                 <h4>Étape 2: Connecter Google Search Console</h4>
                                 <p>Importez vos données de requêtes directement depuis GSC pour enrichir l'analyse avec des données réelles.</p>
-                                <a href="/gsc" class="btn btn-outline-primary">
+                                <a href="{{ base_path }}/gsc" class="btn btn-outline-primary">
                                     <i class="bi bi-google me-1"></i> Connecter GSC
                                 </a>
                             </div>
@@ -53,7 +53,7 @@
                             <div>
                                 <h4>Étape 3: Configurer les règles de maillage</h4>
                                 <p>Définissez des règles précises entre vos segments (ex: articles de blog vers produits) pour un maillage stratégique.</p>
-                                <a href="/analysis#rules" class="btn btn-outline-primary">
+                                <a href="{{ base_path }}/analysis#rules" class="btn btn-outline-primary">
                                     <i class="bi bi-sliders me-1"></i> Configurer les règles
                                 </a>
                             </div>
@@ -65,7 +65,7 @@
                             <div>
                                 <h4>Étape 4: Lancer l'analyse</h4>
                                 <p>Notre IA analyse vos contenus et suggère les meilleurs liens internes à créer en respectant vos règles de maillage.</p>
-                                <a href="/analysis" class="btn btn-primary">
+                                <a href="{{ base_path }}/analysis" class="btn btn-primary">
                                     <i class="bi bi-bar-chart me-1"></i> Commencer l'analyse
                                 </a>
                             </div>
@@ -92,13 +92,13 @@
                                 <h4>Étape 1: Préparer vos fichiers</h4>
                                 <p>Créez ou exportez vos fichiers de contenu, de liens et de GSC au format Excel.</p>
                                 <div class="btn-group">
-                                    <a href="/api/samples/content" class="btn btn-outline-success btn-sm">
+                                    <a href="{{ base_path }}/api/samples/content" class="btn btn-outline-success btn-sm">
                                         <i class="bi bi-download me-1"></i> Exemple contenu
                                     </a>
-                                    <a href="/api/samples/links" class="btn btn-outline-success btn-sm">
+                                    <a href="{{ base_path }}/api/samples/links" class="btn btn-outline-success btn-sm">
                                         <i class="bi bi-download me-1"></i> Exemple liens
                                     </a>
-                                    <a href="/api/samples/gsc" class="btn btn-outline-success btn-sm">
+                                    <a href="{{ base_path }}/api/samples/gsc" class="btn btn-outline-success btn-sm">
                                         <i class="bi bi-download me-1"></i> Exemple GSC
                                     </a>
                                 </div>
@@ -111,7 +111,7 @@
                             <div>
                                 <h4>Étape 2: Configurer les règles et segments</h4>
                                 <p>Définissez vos règles de maillage entre segments (catégories, produits, articles, etc.) pour contrôler précisément quelles pages peuvent se lier entre elles.</p>
-                                <a href="/analysis#rules" class="btn btn-outline-success btn-sm">
+                                <a href="{{ base_path }}/analysis#rules" class="btn btn-outline-success btn-sm">
                                     <i class="bi bi-sliders me-1"></i> Configurer les règles
                                 </a>
                             </div>
@@ -123,7 +123,7 @@
                             <div>
                                 <h4>Étape 3: Lancer l'analyse</h4>
                                 <p>Importez vos fichiers et obtenez des suggestions de maillage interne précises.</p>
-                                <a href="/analysis" class="btn btn-success">
+                                <a href="{{ base_path }}/analysis" class="btn btn-success">
                                     <i class="bi bi-bar-chart me-1"></i> Commencer l'analyse
                                 </a>
                             </div>
@@ -197,9 +197,9 @@
                                         <p>Le <strong>fichier de contenu</strong> est obligatoire pour toute analyse. Il doit contenir au minimum les colonnes : <code>Adresse</code>, <code>Titre</code> et <code>Contenu</code> (ou <code>Extracteur 1 1</code>).</p>
                                         <p>Les fichiers <strong>de liens</strong> et <strong>GSC</strong> sont optionnels mais enrichissent considérablement l'analyse.</p>
                                         <div class="mt-2">
-                                            <a href="/api/samples/content" class="btn btn-sm btn-outline-primary me-2">Exemple contenu</a>
-                                            <a href="/api/samples/links" class="btn btn-sm btn-outline-primary me-2">Exemple liens</a>
-                                            <a href="/api/samples/gsc" class="btn btn-sm btn-outline-primary">Exemple GSC</a>
+                                            <a href="{{ base_path }}/api/samples/content" class="btn btn-sm btn-outline-primary me-2">Exemple contenu</a>
+                                            <a href="{{ base_path }}/api/samples/links" class="btn btn-sm btn-outline-primary me-2">Exemple liens</a>
+                                            <a href="{{ base_path }}/api/samples/gsc" class="btn btn-sm btn-outline-primary">Exemple GSC</a>
                                         </div>
                                     </div>
                                 </div>
@@ -221,7 +221,7 @@
                                         <p>Il détecte automatiquement les segments de votre site (catégories, produits, articles, etc.) pour faciliter la configuration des règles de maillage.</p>
                                         <p>Il génère ensuite les fichiers nécessaires à l'analyse de maillage interne, sans que vous ayez à les préparer manuellement.</p>
                                         <div class="mt-2">
-                                            <a href="/crawler" class="btn btn-sm btn-primary">Lancer le crawler</a>
+                                            <a href="{{ base_path }}/crawler" class="btn btn-sm btn-primary">Lancer le crawler</a>
                                         </div>
                                     </div>
                                 </div>
@@ -242,7 +242,7 @@
                                         </ol>
                                         <p>Ces données permettent de générer des suggestions d'ancres pertinentes basées sur les requêtes qui amènent du trafic à vos pages.</p>
                                         <div class="mt-2">
-                                            <a href="/gsc" class="btn btn-sm btn-primary">Connecter GSC</a>
+                                            <a href="{{ base_path }}/gsc" class="btn btn-sm btn-primary">Connecter GSC</a>
                                         </div>
                                     </div>
                                 </div>
@@ -268,7 +268,7 @@
                                             <li>Pages produits → Produits complémentaires (pour augmenter le panier moyen)</li>
                                         </ul>
                                         <div class="mt-2">
-                                            <a href="/analysis#rules" class="btn btn-sm btn-primary">Configurer les règles</a>
+                                            <a href="{{ base_path }}/analysis#rules" class="btn btn-sm btn-primary">Configurer les règles</a>
                                         </div>
                                     </div>
                                 </div>

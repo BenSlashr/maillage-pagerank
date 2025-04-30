@@ -100,7 +100,7 @@ async function initVisualization(jobId) {
  */
 async function loadGraphData(jobId) {
     try {
-        const response = await fetch(`/api/graph/${jobId}`);
+        const response = await fetch(`${basePath}/api/graph/${jobId}`);
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.detail || 'Erreur lors du chargement des données du graphe');
@@ -125,9 +125,9 @@ async function loadPagerankData(jobId) {
         // Construire l'URL avec les paramètres
         let url;
         if (useWeightedPagerank) {
-            url = `/api/weighted-pagerank/${jobId}?content_links_only=${contentLinksOnly}&alpha=${alpha}&beta=${beta}`;
+            url = `${basePath}/api/weighted-pagerank/${jobId}?content_links_only=${contentLinksOnly}&alpha=${alpha}&beta=${beta}`;
         } else {
-            url = `/api/pagerank/${jobId}?content_links_only=${contentLinksOnly}`;
+            url = `${basePath}/api/pagerank/${jobId}?content_links_only=${contentLinksOnly}`;
         }
         
         console.log(`Chargement du PageRank avec les paramètres: useWeightedPagerank=${useWeightedPagerank}, contentLinksOnly=${contentLinksOnly}, alpha=${alpha}, beta=${beta}`);

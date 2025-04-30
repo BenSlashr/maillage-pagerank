@@ -112,7 +112,7 @@ function initCytoscapeVisualization(data) {
     const backToResultsLink = document.getElementById('back-to-results');
     if (backToResultsLink) {
         const jobId = window.location.pathname.split('/').pop();
-        backToResultsLink.href = `/results/${jobId}`;
+        backToResultsLink.href = `${basePath}/results/${jobId}`;
     }
     
     // Initialiser les contrôles de filtrage par profondeur si les données sont disponibles
@@ -1015,7 +1015,7 @@ function setupDefaultOptions() {
     const backToResultsLink = document.getElementById('back-to-results');
     if (backToResultsLink) {
         const jobId = window.location.pathname.split('/').pop();
-        backToResultsLink.href = `/results/${jobId}`;
+        backToResultsLink.href = `${basePath}/results/${jobId}`;
     }
     
     // S'assurer que les options sont activées par défaut

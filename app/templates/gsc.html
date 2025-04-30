@@ -24,7 +24,7 @@
                         <div class="alert alert-warning">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>Vous devez d'abord configurer vos identifiants Google pour utiliser cette fonctionnalité.
                         </div>
-                        <a href="/google-config" class="btn btn-primary">
+                        <a href="{{ base_path }}/google-config" class="btn btn-primary">
                             <i class="bi bi-gear me-2"></i>Configurer les identifiants Google
                         </a>
                     </div>
@@ -32,7 +32,7 @@
                     <div x-show="authenticated" class="mt-4">
                         <div class="alert alert-success" role="alert">
                             <i class="bi bi-check-circle-fill me-2"></i>Vous êtes connecté à Google Search Console
-                            <a href="/api/google/logout" class="btn btn-sm btn-outline-secondary float-end">
+                            <a href="{{ base_path }}/api/google/logout" class="btn btn-sm btn-outline-secondary float-end">
                                 <i class="bi bi-box-arrow-right me-1"></i>Se déconnecter
                             </a>
                         </div>

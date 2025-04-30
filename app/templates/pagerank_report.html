@@ -56,13 +56,13 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h1>Rapport PageRank</h1>
                     <div>
-                        <a href="/results/{{ job_id }}" class="btn btn-outline-primary">
+                        <a href="{{ base_path }}/results/{{ job_id }}" class="btn btn-outline-primary">
                             <i class="bi bi-arrow-left"></i> Retour aux résultats
                         </a>
-                        <a href="/visualization/{{ job_id }}" class="btn btn-outline-secondary">
+                        <a href="{{ base_path }}/visualization/{{ job_id }}" class="btn btn-outline-secondary">
                             <i class="bi bi-graph-up"></i> Visualisation standard
                         </a>
-                        <a href="/cytoscape/{{ job_id }}" class="btn btn-outline-info">
+                        <a href="{{ base_path }}/cytoscape/{{ job_id }}" class="btn btn-outline-info">
                             <i class="bi bi-diagram-3"></i> Visualisation Cytoscape
                         </a>
                     </div>
